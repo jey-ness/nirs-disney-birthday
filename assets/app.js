@@ -1,3 +1,5 @@
+import { createStore, createSync, renderCalendar, openEditor, toMin, toHM, fmtClock, fmtRange, SYNC_TEXT } from "./edit.js";
+
 // Orlando trip site. No build step: plain ES module.
 // Optional /config.js (git-ignored) sets window.TRIP_CONFIG = { mapsKey, mapId, confirmations }.
 
@@ -23,12 +25,6 @@ const ICON = {
   clipboard: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" style="margin-bottom:2px"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12l2 2 4-4"/></svg>`,
 };
 
-// "10:30 AM" -> 10:30<small>AM</small>
-const fmtTime = (t) => {
-  const m = /^(.*?)\s*(AM|PM)$/.exec(t);
-  return m ? `${esc(m[1])}<small>${m[2]}</small>` : esc(t);
-};
-const shortTime = (t) => t.replace(/\s*(AM|PM)$/, "");
 
 // ---------- time (America/New_York) ----------
 function nyNow() {
@@ -217,30 +213,46 @@ function wireHome() {
 }
 
 // ---------- day ----------
-function nowNext(day) {
+let store = null, sync = null; // set in boot on day pages
+const VIEW_STORE = "orlando-trip-view-v1";
+const getView = () => { try { return localStorage.getItem(VIEW_STORE) === "cal" ? "cal" : "list"; } catch { return "list"; } };
+const setView = (v) => { try { localStorage.setItem(VIEW_STORE, v); } catch { /* ignore */ } };
+const timeHtml = (min) => { const t = fmtClock(min); const [hm, ap] = t.split(" "); return `${esc(hm)}<small>${ap}</small>`; };
+const ICON_EDIT = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>`;
+
+// Map pins follow the (edited) schedule: every event with a place gets the next number.
+function numbered(day, events) {
+  const stopBy = Object.fromEntries(day.stops.map((s) => [s.order, s]));
+  let n = 0;
+  return events.map((ev) => {
+    const stop = ev.place != null ? stopBy[ev.place] : null;
+    return { ev, stop: stop && stop.lat != null ? stop : null, num: stop && stop.lat != null ? ++n : null };
+  });
+}
+
+function nowNext(day, events) {
   const { date, hm } = nyNow();
-  const rows = day.schedule;
-  const brief = (r) => esc(r.text);
+  const now = toMin(hm);
+  const at = (e) => esc(fmtClock(toMin(e.start), { withMeridiem: false }));
+  if (!events.length) return { html: `<div><span class="label">Nothing planned</span><span class="val">Add something below.</span></div>`, single: true, cur: -1 };
   if (date < day.date) {
     const n = daysBetween(date, day.date);
-    return { html: `<div><span class="label">In ${n} day${n === 1 ? "" : "s"} · starts ${esc(shortTime(rows[0].time))}</span><span class="val">${brief(rows[0])}</span></div>`, single: true, cur: -1 };
+    return { html: `<div><span class="label">In ${n} day${n === 1 ? "" : "s"} · starts ${esc(fmtClock(toMin(events[0].start)))}</span><span class="val">${esc(events[0].title)}</span></div>`, single: true, cur: -1 };
   }
-  if (date > day.date) return { html: `<div><span class="label">Done</span><span class="val">This day is over.</span></div>`, single: true, cur: rows.length };
+  if (date > day.date) return { html: `<div><span class="label">Done</span><span class="val">This day is over.</span></div>`, single: true, cur: events.length };
   let cur = -1;
-  rows.forEach((r, i) => { if (r.start <= hm) cur = i; });
-  const now = cur >= 0 ? rows[cur] : null;
-  const next = rows[cur + 1];
+  events.forEach((e, i) => { if (toMin(e.start) <= now) cur = i; });
+  const a = events[cur], b = events[cur + 1];
   return {
-    html: `<div><span class="label">Now${now ? " · " + esc(shortTime(now.time)) : ""}</span><span class="val">${now ? brief(now) : "Not started yet"}</span></div>
-           <div><span class="label">Next${next ? " · " + esc(shortTime(next.time)) : ""}</span><span class="val">${next ? brief(next) : "Done for the day"}</span></div>`,
+    html: `<div><span class="label">Now${a ? " · " + at(a) : ""}</span><span class="val">${a ? esc(a.title) : "Not started yet"}</span></div>
+           <div><span class="label">Next${b ? " · " + at(b) : ""}</span><span class="val">${b ? esc(b.title) : "Done for the day"}</span></div>`,
     single: false,
     cur,
   };
 }
 
 function renderDay(trip, day) {
-  const nn = nowNext(day);
-  const stopBy = Object.fromEntries(day.stops.map((s) => [s.order, s]));
+  const view = getView();
   return `
   <main>
     <header class="head">
@@ -251,7 +263,7 @@ function renderDay(trip, day) {
     </header>
 
     <div class="stick" id="stick">
-      <div class="nownext ${nn.single ? "single" : ""}">${nn.html}</div>
+      <div class="nownext" id="nownext"></div>
       <div class="mapbox"><div id="map" role="region" aria-label="Map of the day's stops"></div></div>
     </div>
     <p class="mapnote" id="mapnote"></p>
@@ -262,97 +274,172 @@ function renderDay(trip, day) {
     </ul>
     ${day.note ? `<p class="note">${esc(day.note)}</p>` : ""}
 
-    <h2>The day</h2>
-    <ol class="sched" id="sched">
-      ${day.schedule
-        .map((r, i) => {
-          const s = r.stop ? stopBy[r.stop] : null;
-          const tags = [...(r.tags || [])];
-          const cls = [s ? "stop" : "", i < nn.cur ? "past" : "", i === nn.cur ? "now" : ""].join(" ").trim();
-          return `<li class="${cls}" ${s ? `data-stop="${s.order}"` : ""}>
-            <div class="when"><span class="time">${fmtTime(r.time)}</span>${s ? `<span class="num">${s.order}</span>` : ""}</div>
-            <div class="body">
-              ${tags.length || s?.approx ? `<span class="tags">${tagsFor(tags)}${s?.approx ? tag("approx", "Approx. pin") : ""}</span>` : ""}
-              <div class="what">${esc(r.text)}</div>
-              ${s ? `<div class="where">${esc(s.name)}</div>
-              <a class="dir" href="${esc(mapsUrl(s, day.park))}" target="_blank" rel="noopener">Directions ${ICON.arrow}</a>` : ""}
-            </div>
-          </li>`;
-        })
-        .join("")}
-    </ol>
+    <div class="dayhead">
+      <h2>The day</h2>
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" data-view="list" aria-pressed="${view === "list"}">List</button>
+        <button type="button" data-view="cal" aria-pressed="${view === "cal"}">Calendar</button>
+      </div>
+    </div>
+    <div class="daytools">
+      <span class="sync" id="syncStatus" aria-live="polite"></span>
+      <button type="button" class="addbtn" id="addEv">+ Add</button>
+    </div>
+    <div id="dayBody"></div>
   </main>`;
 }
 
-// selection shared by both map renderers
-let mapApi = { highlight() {}, focus() {} };
-function select(order, from) {
+function listHtml(day, items, cur) {
+  return `<ol class="sched" id="sched">${items
+    .map(({ ev, stop, num }, i) => {
+      const cls = [num ? "stop" : "", i < cur ? "past" : "", i === cur ? "now" : ""].join(" ").trim();
+      const tags = ev.tags || [];
+      return `<li class="${cls}" data-id="${esc(ev.id)}">
+        <div class="when"><span class="time">${timeHtml(toMin(ev.start))}</span>${num ? `<span class="num">${num}</span>` : ""}</div>
+        <div class="body">
+          ${tags.length || stop?.approx ? `<span class="tags">${tagsFor(tags)}${stop?.approx ? tag("approx", "Approx. pin") : ""}</span>` : ""}
+          <div class="what">${esc(ev.title)}</div>
+          <div class="where">${esc(fmtRange(toMin(ev.start), toMin(ev.end)))}${stop ? " · " + esc(stop.name) : ""}</div>
+          ${ev.note ? `<div class="evnote">${esc(ev.note)}</div>` : ""}
+          ${stop ? `<a class="dir" href="${esc(mapsUrl(stop, day.park))}" target="_blank" rel="noopener">Directions ${ICON.arrow}</a>` : ""}
+        </div>
+        <button type="button" class="editbtn" data-edit="${esc(ev.id)}" aria-label="Edit ${esc(ev.title)}">${ICON_EDIT}</button>
+      </li>`;
+    })
+    .join("")}</ol>
+    ${items.length ? "" : `<p class="muted" style="margin-top:12px">Nothing planned yet. Tap + Add.</p>`}`;
+}
+
+// selection shared by list rows, calendar and both map renderers (keyed by event id)
+let mapApi = { highlight() {}, focus() {}, draw() {} };
+function select(id, from) {
   document.querySelectorAll("#sched li.on").forEach((el) => el.classList.remove("on"));
-  const li = document.querySelector(`#sched li[data-stop="${order}"]`);
+  const li = document.querySelector(`#sched li[data-id="${CSS.escape(id)}"]`);
   if (li) li.classList.add("on");
-  mapApi.highlight(order);
+  mapApi.highlight(id);
   if (from === "map" && li) {
     const stickH = document.getElementById("stick").getBoundingClientRect().height;
     window.scrollTo({ top: window.scrollY + li.getBoundingClientRect().top - stickH - 8, behavior: "smooth" });
   }
-  if (from === "list") mapApi.focus(order);
+  if (from === "list") mapApi.focus(id);
 }
 
 function wireDay(day) {
-  document.getElementById("sched").addEventListener("click", (e) => {
-    if (e.target.closest("a")) return;
-    const li = e.target.closest("li[data-stop]");
-    if (li) select(Number(li.dataset.stop), "list");
-  });
-  const stops = day.stops.filter((s) => s.lat != null).sort((a, b) => a.order - b.order);
+  const body = document.getElementById("dayBody");
+  const nn = document.getElementById("nownext");
   const note = document.getElementById("mapnote");
-  const approx = stops.filter((s) => s.approx).map((s) => s.order);
-  const approxTxt =
-    approx.length === 1 ? ` Pin ${approx[0]} is approximate.`
-    : approx.length ? ` Pins ${approx.slice(0, -1).join(", ")} and ${approx.at(-1)} are approximate.` : "";
-  if (CFG.mapsKey) {
-    note.textContent = "Tap a pin or a row to match them up." + approxTxt;
-    loadGoogle(day, stops).catch(() => {
-      note.textContent = "Google Maps didn't load, so this is a simple layout of the stops, north up." + approxTxt;
-      renderSvg(stops);
+  const places = day.stops.filter((s) => s.lat != null);
+  let items = [];
+
+  const edit = (ev, isNew = false) =>
+    openEditor({
+      ev, isNew, isBase: store.isBase(ev.id), places,
+      onSave: (e) => store.upsert(e),
+      onDelete: (e) => store.remove(e),
+      onRestore: (e) => store.restore(e),
     });
-  } else {
-    note.textContent = "A simple layout of the stops, north up. Use Directions to navigate." + approxTxt;
-    renderSvg(stops);
+  const blank = (startMin) => ({ id: store.newId(), day: day.slug, title: "", start: toHM(startMin), end: toHM(Math.min(startMin + 60, 23 * 60 + 55)), place: null, tags: [], note: "" });
+
+  function render() {
+    const events = store.eventsFor(day.slug);
+    items = numbered(day, events);
+    const n = nowNext(day, events);
+    nn.className = "nownext" + (n.single ? " single" : "");
+    nn.innerHTML = n.html;
+    const { date, hm } = nyNow();
+    if (getView() === "cal") {
+      body.innerHTML = `<div id="calBox"></div>`;
+      renderCalendar(document.getElementById("calBox"), events, {
+        today: date === day.date,
+        nowMin: toMin(hm),
+        placeLabel: (ev) => items.find((it) => it.ev.id === ev.id)?.num ?? null,
+        onCreate: (min) => edit(blank(min), true),
+        onOpen: (ev) => edit(ev),
+        onMove: (ev, start, end) => store.upsert({ ...ev, start, end }),
+      });
+    } else {
+      body.innerHTML = listHtml(day, items, n.cur);
+    }
+    const pins = items.filter((it) => it.num);
+    const approx = pins.filter((p) => p.stop.approx).map((p) => p.num);
+    const approxTxt =
+      approx.length === 1 ? ` Pin ${approx[0]} is approximate.`
+      : approx.length ? ` Pins ${approx.slice(0, -1).join(", ")} and ${approx.at(-1)} are approximate.` : "";
+    note.textContent = (note.dataset.base || "") + approxTxt;
+    mapApi.draw(pins);
   }
+
+  document.querySelector(".seg").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-view]");
+    if (!b) return;
+    setView(b.dataset.view);
+    document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    render();
+  });
+  document.getElementById("addEv").addEventListener("click", () => {
+    const { date, hm } = nyNow();
+    const evs = store.eventsFor(day.slug);
+    const start = date === day.date ? Math.ceil(toMin(hm) / 30) * 30 : evs.length ? Math.ceil(toMin(evs.at(-1).end) / 30) * 30 : 12 * 60;
+    edit(blank(Math.min(start, 23 * 60)), true);
+  });
+  body.addEventListener("click", (e) => {
+    const eb = e.target.closest("[data-edit]");
+    if (eb) { const ev = items.find((it) => it.ev.id === eb.dataset.edit)?.ev; if (ev) edit(ev); return; }
+    if (e.target.closest("a")) return;
+    const li = e.target.closest("#sched li.stop");
+    if (li) select(li.dataset.id, "list");
+  });
+
+  const statusEl = document.getElementById("syncStatus");
+  sync.onStatus((s) => { statusEl.textContent = SYNC_TEXT[s] || ""; statusEl.dataset.state = s; });
+  store.onChange(() => render());
+
+  if (CFG.mapsKey) {
+    note.dataset.base = "Tap a pin or a row to match them up.";
+    setupGoogle(day).then(render).catch(() => {
+      note.dataset.base = "Google Maps didn't load, so this is a simple layout of the stops, north up.";
+      setupSvg();
+      render();
+    });
+    setupSvg(); // shows something right away; Google replaces it when ready
+  } else {
+    note.dataset.base = "A simple layout of the stops, north up. Use Directions to navigate.";
+    setupSvg();
+  }
+  render();
 }
 
-// ---------- fallback map: SVG plot of the stops ----------
-function renderSvg(stops) {
+// ---------- fallback map: SVG plot of the pins ----------
+function setupSvg() {
   const box = document.getElementById("map");
-  const W = box.clientWidth || 342, H = box.clientHeight || 240, pad = 26;
-  const lat0 = stops.reduce((a, s) => a + s.lat, 0) / stops.length;
-  const k = Math.cos((lat0 * Math.PI) / 180);
-  const xs = stops.map((s) => s.lng * k), ys = stops.map((s) => s.lat);
-  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-  const scale = Math.min((W - 2 * pad) / (maxX - minX || 1), (H - 2 * pad) / (maxY - minY || 1));
-  const offX = (W - (maxX - minX) * scale) / 2, offY = (H - (maxY - minY) * scale) / 2;
-  const pt = (s) => [offX + (s.lng * k - minX) * scale, offY + (maxY - s.lat) * scale];
-  const path = stops.map((s, i) => `${i ? "L" : "M"}${pt(s).map((v) => v.toFixed(1)).join(",")}`).join(" ");
-  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">
-    <path d="${path}" fill="none" stroke="#5A6A82" stroke-width="1.5" stroke-dasharray="4 4" stroke-linejoin="round"/>
-    ${stops
-      .map((s) => {
-        const [x, y] = pt(s);
-        return `<g class="svgpin" data-stop="${s.order}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle r="13"/><text>${s.order}</text></g>`;
-      })
-      .join("")}
-  </svg>`;
-  box.querySelector("svg").addEventListener("click", (e) => {
-    const g = e.target.closest(".svgpin");
-    if (g) select(Number(g.dataset.stop), "map");
-  });
+  let last = [];
   mapApi = {
-    highlight(order) {
+    draw(pins) {
+      last = pins;
+      if (!pins.length) { box.innerHTML = ""; return; }
+      const W = box.clientWidth || 342, H = box.clientHeight || 240, pad = 26;
+      const lat0 = pins.reduce((a, p) => a + p.stop.lat, 0) / pins.length;
+      const k = Math.cos((lat0 * Math.PI) / 180);
+      const xs = pins.map((p) => p.stop.lng * k), ys = pins.map((p) => p.stop.lat);
+      const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+      const scale = Math.min((W - 2 * pad) / (maxX - minX || 1), (H - 2 * pad) / (maxY - minY || 1));
+      const offX = (W - (maxX - minX) * scale) / 2, offY = (H - (maxY - minY) * scale) / 2;
+      const pt = (s) => [offX + (s.lng * k - minX) * scale, offY + (maxY - s.lat) * scale];
+      const path = pins.map((p, i) => `${i ? "L" : "M"}${pt(p.stop).map((v) => v.toFixed(1)).join(",")}`).join(" ");
+      box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">
+        <path d="${path}" fill="none" stroke="#5A6A82" stroke-width="1.5" stroke-dasharray="4 4" stroke-linejoin="round"/>
+        ${pins.map((p) => { const [x, y] = pt(p.stop); return `<g class="svgpin" data-id="${esc(p.ev.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle r="13"/><text>${p.num}</text></g>`; }).join("")}
+      </svg>`;
+      box.querySelector("svg").addEventListener("click", (e) => {
+        const g = e.target.closest(".svgpin");
+        if (g) select(g.dataset.id, "map");
+      });
+    },
+    highlight(id) {
       box.querySelectorAll(".svgpin").forEach((g) => {
-        const on = Number(g.dataset.stop) === order;
+        const on = g.dataset.id === id;
         g.classList.toggle("on", on);
-        if (on) g.parentNode.appendChild(g); // bring to front
+        if (on) g.parentNode.appendChild(g);
       });
     },
     focus() {},
@@ -374,49 +461,45 @@ function loadGoogleScript() {
   });
 }
 
-async function loadGoogle(day, stops) {
+async function setupGoogle(day) {
   await loadGoogleScript();
   const { Map, Polyline, LatLngBounds } = google.maps;
   const { AdvancedMarkerElement } = google.maps.marker;
   const el = document.getElementById("map");
+  el.innerHTML = "";
   const map = new Map(el, {
-    center: day.center,
-    zoom: 16,
-    mapId: CFG.mapId || "DEMO_MAP_ID",
-    disableDefaultUI: true,
-    zoomControl: true,
-    gestureHandling: "greedy",
-    clickableIcons: false,
+    center: day.center, zoom: 16, mapId: CFG.mapId || "DEMO_MAP_ID",
+    disableDefaultUI: true, zoomControl: true, gestureHandling: "greedy", clickableIcons: false,
   });
-  new Polyline({
-    map,
-    path: stops.map((s) => ({ lat: s.lat, lng: s.lng })),
-    strokeColor: "#0E1726",
-    strokeOpacity: 0.65,
-    strokeWeight: 3,
-  });
-  const markers = {};
-  const bounds = new LatLngBounds();
-  stops.forEach((s) => {
-    const pin = document.createElement("div");
-    pin.className = "gpin";
-    pin.textContent = s.order;
-    const m = new AdvancedMarkerElement({ map, position: { lat: s.lat, lng: s.lng }, content: pin, title: `${s.order}. ${s.name}`, gmpClickable: true });
-    pin.addEventListener("click", (e) => { e.stopPropagation(); select(s.order, "map"); });
-    markers[s.order] = { m, pin, s };
-    bounds.extend({ lat: s.lat, lng: s.lng });
-  });
-  map.fitBounds(bounds, 36);
+  const line = new Polyline({ map, path: [], strokeColor: "#0E1726", strokeOpacity: 0.65, strokeWeight: 3 });
+  let markers = {}, fitted = "";
   mapApi = {
-    highlight(order) {
-      Object.values(markers).forEach(({ m, pin, s }) => {
-        const on = s.order === order;
+    draw(pins) {
+      Object.values(markers).forEach(({ m }) => (m.map = null));
+      markers = {};
+      line.setPath(pins.map((p) => ({ lat: p.stop.lat, lng: p.stop.lng })));
+      const bounds = new LatLngBounds();
+      pins.forEach((p) => {
+        const pin = document.createElement("div");
+        pin.className = "gpin";
+        pin.textContent = p.num;
+        const m = new AdvancedMarkerElement({ map, position: { lat: p.stop.lat, lng: p.stop.lng }, content: pin, title: `${p.num}. ${p.stop.name}`, gmpClickable: true, zIndex: p.num });
+        pin.addEventListener("click", (e) => { e.stopPropagation(); select(p.ev.id, "map"); });
+        markers[p.ev.id] = { m, pin, num: p.num };
+        bounds.extend({ lat: p.stop.lat, lng: p.stop.lng });
+      });
+      const key = pins.map((p) => p.stop.order).sort().join(",");
+      if (pins.length && key !== fitted) { map.fitBounds(bounds, 36); fitted = key; } // refit only when the set of places changes
+    },
+    highlight(id) {
+      Object.entries(markers).forEach(([k, { m, pin, num }]) => {
+        const on = k === id;
         pin.classList.toggle("gon", on);
-        m.zIndex = on ? 999 : s.order;
+        m.zIndex = on ? 999 : num;
       });
     },
-    focus(order) {
-      const k = markers[order];
+    focus(id) {
+      const k = markers[id];
       if (k) map.panTo(k.m.position);
     },
   };
@@ -535,6 +618,7 @@ function renderLock(blob, onOpen) {
       const bits = await deriveBits(document.getElementById("pw").value, blob);
       const payload = await decryptBlob(blob, bits);
       saveKey(bits, document.getElementById("remember").checked);
+      KEY_BITS = bits;
       onOpen(payload);
     } catch {
       err.textContent = "That password didn't work. Try again.";
@@ -543,6 +627,7 @@ function renderLock(blob, onOpen) {
   });
 }
 
+let KEY_BITS = null; // derived from the password; also keys live sync
 async function loadTrip() {
   if (!CFG.encrypted) {
     const plain = await fetch(BASE + "data/trip.json").catch(() => null);
@@ -552,7 +637,7 @@ async function loadTrip() {
   const blob = await (await fetch(BASE + "data/trip.enc.json")).json();
   const key = savedKey();
   if (key) {
-    try { return await decryptBlob(blob, key); } catch { forgetKey(); } // password changed since
+    try { const p = await decryptBlob(blob, key); KEY_BITS = key; return p; } catch { forgetKey(); } // password changed since
   }
   return new Promise((resolve) => renderLock(blob, resolve));
 }
@@ -573,6 +658,8 @@ async function boot() {
   else if (page === "day") {
     const day = trip.days.find((d) => d.slug === daySlug);
     document.title = `${day.park} · ${day.label}`;
+    store = createStore(trip);
+    sync = createSync(store, { bits: KEY_BITS, supabase: CFG.supabaseUrl ? { url: CFG.supabaseUrl, anonKey: CFG.supabaseAnonKey } : null });
     app.innerHTML = renderDay(trip, day);
     wireDay(day);
   }

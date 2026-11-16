@@ -23,7 +23,7 @@ COPY = ["index.html", "bookings/index.html", "sw.js", "manifest.webmanifest"] + 
 
 
 def read_local_config():
-    """Pull mapsKey, mapId and confirmations out of the git-ignored config.js."""
+    """Pull mapsKey, mapId, Supabase settings and confirmations out of the git-ignored config.js."""
     path = os.path.join(ROOT, "config.js")
     if not os.path.exists(path):
         return {}
@@ -31,7 +31,9 @@ def read_local_config():
     pick = lambda k: (re.search(rf'\b{k}\s*:\s*"([^"]*)"', src) or [None, ""])[1]
     conf = {k: v for k, v in re.findall(r'\b(\w+)\s*:\s*"([^"]*)"', re.search(r"confirmations\s*:\s*\{([^}]*)\}", src).group(1))} \
         if re.search(r"confirmations\s*:\s*\{", src) else {}
-    return {"mapsKey": pick("mapsKey"), "mapId": pick("mapId"), "confirmations": {k: v for k, v in conf.items() if v}}
+    return {"mapsKey": pick("mapsKey"), "mapId": pick("mapId"),
+            "supabaseUrl": pick("supabaseUrl"), "supabaseAnonKey": pick("supabaseAnonKey"),
+            "confirmations": {k: v for k, v in conf.items() if v}}
 
 
 def encrypt(payload: bytes, password: str) -> dict:
@@ -84,7 +86,7 @@ def main():
     leaks = []
     cfg = read_local_config()
     # values that must only exist encrypted: keys, confirmations, and readable text from the plan itself
-    secrets_to_check = [v for v in [cfg.get("mapsKey")] + list(cfg.get("confirmations", {}).values()) if v]
+    secrets_to_check = [v for v in [cfg.get("mapsKey"), cfg.get("supabaseUrl"), cfg.get("supabaseAnonKey")] + list(cfg.get("confirmations", {}).values()) if v]
     secrets_to_check += [trip["travelers"]] + [d["summary"] for d in trip["days"]] + \
         [s["name"] for d in trip["days"] for s in d["stops"]] + [b["when"] for b in trip["booked"]]
     for dirpath, _, files in os.walk(out):

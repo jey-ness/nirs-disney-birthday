@@ -1,11 +1,11 @@
 // Offline cache: serve from cache right away, refresh in the background.
-const CACHE = "orlando-trip-v3";
+const CACHE = "orlando-trip-v4";
 const FONT_CACHE = "orlando-fonts-v1";
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 // Relative to this worker's folder, so it works at / and at /repo-name/
 const SHELL = [
   "./", "bookings/", "day/epcot/", "day/magic-kingdom/", "day/hollywood-studios/",
-  "assets/styles.css", "assets/app.js", "assets/icon.svg", "config.js", "manifest.webmanifest",
+  "assets/styles.css", "assets/app.js", "assets/edit.js", "assets/icon.svg", "config.js", "manifest.webmanifest",
   "data/trip.json", "data/trip.enc.json",
 ];
 

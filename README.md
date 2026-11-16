@@ -20,3 +20,23 @@ Mobile trip site for Walt Disney World, Nov 27–29, 2026. Password protected.
 4. Commit and push. GitHub Pages updates in a minute or two.
 
 Back up `data/trip.json` and `config.js` somewhere private: they are not on GitHub.
+
+## Editing the schedule
+
+On a day page, switch **List / Calendar**. In Calendar: tap an empty slot to add
+an event, tap an event to edit it, long-press and drag to move it, drag its
+bottom edge to change the length. In List, use the pencil on each row. Edits
+save on the phone right away and work offline.
+
+### Live sync between phones (Supabase)
+
+1. In Supabase: **SQL Editor > New query**, paste `supabase/setup.sql`, **Run**.
+2. **Project Settings > API**: copy the Project URL and the `anon` `public` key
+   into `config.js` as `supabaseUrl` and `supabaseAnonKey`.
+3. Rebuild (`python3 scripts/build_pages.py`) and push.
+
+Edits are encrypted in the browser with the site password before they are sent,
+so Supabase only stores an unreadable blob under an id derived from the
+password. Visitors can't read or list the table: only two database functions
+are exposed. Sync needs the password-protected build (live site), so the plain
+local preview saves edits on that browser only.
