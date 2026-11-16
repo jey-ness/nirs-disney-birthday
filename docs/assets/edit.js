@@ -86,6 +86,7 @@ export function createStore(trip) {
   return {
     eventsFor,
     isBase: (id) => !!base[id],
+    allTags: () => [...new Set(trip.days.flatMap((d) => eventsFor(d.slug).flatMap((e) => e.tags || [])))],
     newId: uid,
     upsert: (ev) => touch(ev.id, { day: ev.day, ...pick(ev) }),
     remove: (ev) => touch(ev.id, { day: ev.day, deleted: true }),
@@ -251,7 +252,7 @@ export function renderCalendar(box, events, { today, nowMin, placeLabel, onCreat
     if (el && resize) {
       drag.active = true; // resize handle starts at once
       el.classList.add("lifted");
-      grid.setPointerCapture(e.pointerId);
+      try { grid.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     } else if (el) {
       // long press picks the event up (like Google Calendar); a quick move means scrolling
       drag.timer = setTimeout(() => {
@@ -306,15 +307,25 @@ export function renderCalendar(box, events, { today, nowMin, placeLabel, onCreat
 }
 
 // ---------- editor sheet ----------
-const TAG_OPTIONS = [["multi", "Multi Pass"], ["single", "Single Pass"], ["solo", "Jey solo"], ["booked", "Booked"], ["standby", "Standby"]];
-export function openEditor({ ev, isNew, isBase, places, onSave, onDelete, onRestore }) {
+export const BUILTIN_TAGS = [["multi", "Multi Pass"], ["single", "Single Pass"], ["solo", "Jey solo"], ["booked", "Booked"], ["standby", "Standby"]];
+const BUILTIN = new Set(BUILTIN_TAGS.map(([v]) => v));
+const cleanTag = (t) => String(t).replace(/\s+/g, " ").trim().slice(0, 24);
+
+// places: the day's known stops [{order, name, lat, lng, ...}]
+// getPlaceSearch(): Promise<{ search(q) -> [{title, subtitle, pick() -> place}] } | null>
+// A chosen place is either a known stop's order number or {name, lat, lng, placeId, address}.
+export function openEditor({ ev, isNew, isBase, places, knownTags = [], getPlaceSearch, onSave, onDelete, onRestore }) {
   document.getElementById("editSheet")?.remove();
+  const evTags = ev.tags || [];
+  const custom = [...new Set([...knownTags, ...evTags].filter((t) => !BUILTIN.has(t)).map(cleanTag).filter(Boolean))];
+  const chip = (v, l, cls, on) => `<label class="chip ${cls}"><input type="checkbox" name="tags" value="${esc(v)}" ${on ? "checked" : ""}><span>${esc(l)}</span></label>`;
+
   const dlg = document.createElement("dialog");
   dlg.id = "editSheet";
   dlg.className = "sheet";
   dlg.setAttribute("aria-labelledby", "editTitle");
   dlg.innerHTML = `
-    <form method="dialog" class="sheet-body" id="editForm">
+    <form method="dialog" class="sheet-body" id="editForm" novalidate>
       <div class="sheet-top">
         <button type="button" class="sheet-x" id="editCancel" aria-label="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -323,19 +334,37 @@ export function openEditor({ ev, isNew, isBase, places, onSave, onDelete, onRest
         <button type="submit" class="sheet-save">Save</button>
       </div>
       <label class="fld"><span class="label">Title</span>
-        <input name="title" type="text" required maxlength="140" value="${esc(ev.title)}" placeholder="Add title" autocomplete="off"></label>
+        <input name="title" type="text" maxlength="140" value="${esc(ev.title)}" placeholder="Add title" autocomplete="off"></label>
       <div class="fld-row">
-        <label class="fld"><span class="label">Starts</span><input name="start" type="time" step="300" required value="${esc(ev.start)}"></label>
-        <label class="fld"><span class="label">Ends</span><input name="end" type="time" step="300" required value="${esc(ev.end)}"></label>
+        <label class="fld"><span class="label">Starts</span><input name="start" type="time" step="300" value="${esc(ev.start)}"></label>
+        <label class="fld"><span class="label">Ends</span><input name="end" type="time" step="300" value="${esc(ev.end)}"></label>
       </div>
       <p class="err" id="editErr" role="alert"></p>
-      <label class="fld"><span class="label">Map pin</span>
-        <select name="place">
-          <option value="">No pin</option>
-          ${places.map((p) => `<option value="${p.order}" ${String(ev.place) === String(p.order) ? "selected" : ""}>${esc(p.name)}</option>`).join("")}
-        </select></label>
-      <fieldset class="fld chips"><legend class="label">Tags</legend>
-        ${TAG_OPTIONS.map(([v, l]) => `<label class="chip ${v}"><input type="checkbox" name="tags" value="${v}" ${ev.tags?.includes(v) ? "checked" : ""}><span>${l}</span></label>`).join("")}
+
+      <div class="fld place-fld">
+        <span class="label" id="plLabel">Location</span>
+        <div class="place-picked" id="plPicked" hidden>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+          <span class="pl-text"><b id="plName"></b><span id="plAddr"></span></span>
+          <button type="button" class="pl-clear" id="plClear" aria-label="Remove location">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div class="pl-box" id="plBox">
+          <input id="plInput" type="search" role="combobox" aria-expanded="false" aria-controls="plList" aria-autocomplete="list"
+            aria-labelledby="plLabel" placeholder="Search a place or address" autocomplete="off" enterkeyhint="search">
+          <ul id="plList" role="listbox" class="pl-list" aria-label="Places" hidden></ul>
+        </div>
+        <p class="pl-hint" id="plHint"></p>
+      </div>
+
+      <fieldset class="fld chips" id="tagChips"><legend class="label">Tags</legend>
+        ${BUILTIN_TAGS.map(([v, l]) => chip(v, l, v, evTags.includes(v))).join("")}
+        ${custom.map((t) => chip(t, t, "custom", evTags.includes(t))).join("")}
+        <span class="tag-add">
+          <input id="tagInput" type="text" maxlength="24" placeholder="New tag" aria-label="New tag name" autocomplete="off" enterkeyhint="done">
+          <button type="button" id="tagAdd" aria-label="Add tag">Add</button>
+        </span>
       </fieldset>
       <label class="fld"><span class="label">Note</span>
         <textarea name="note" rows="2" maxlength="500" placeholder="Add a note">${esc(ev.note || "")}</textarea></label>
@@ -345,30 +374,125 @@ export function openEditor({ ev, isNew, isBase, places, onSave, onDelete, onRest
       </div>
     </form>`;
   document.body.appendChild(dlg);
-  const form = dlg.querySelector("form");
+  const $ = (sel) => dlg.querySelector(sel);
+  const form = $("form");
   const close = () => { dlg.close(); dlg.remove(); };
   dlg.addEventListener("cancel", (e) => { e.preventDefault(); close(); });
-  dlg.addEventListener("click", (e) => { if (e.target === dlg) close(); }); // tap outside the sheet
-  dlg.querySelector("#editCancel").addEventListener("click", close);
-  dlg.querySelector("#editDelete")?.addEventListener("click", () => {
-    if (confirm(`Delete “${ev.title}”?`)) { onDelete(ev); close(); }
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) close(); });
+  $("#editCancel").addEventListener("click", close);
+  $("#editDelete")?.addEventListener("click", () => { if (confirm(`Delete “${ev.title}”?`)) { onDelete(ev); close(); } });
+  $("#editRestore")?.addEventListener("click", () => { onRestore(ev); close(); });
+
+  // ----- custom tags -----
+  const addTag = () => {
+    const input = $("#tagInput");
+    const t = cleanTag(input.value);
+    input.value = "";
+    if (!t) return;
+    const match = [...form.querySelectorAll('input[name="tags"]')].find((x) => x.value.toLowerCase() === t.toLowerCase()
+      || x.nextElementSibling.textContent.toLowerCase() === t.toLowerCase());
+    if (match) { match.checked = true; return; }
+    $(".tag-add").insertAdjacentHTML("beforebegin", chip(t, t, "custom", true));
+  };
+  $("#tagAdd").addEventListener("click", addTag);
+  $("#tagInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } });
+
+  // ----- location combobox -----
+  let chosen = ev.place ?? null;
+  const knownBy = Object.fromEntries(places.map((p) => [p.order, p]));
+  const input = $("#plInput"), list = $("#plList"), hint = $("#plHint");
+  let items = [], active = -1, seq = 0, searchApi, timer;
+  const showChosen = () => {
+    const p = chosen == null ? null : typeof chosen === "object" ? chosen : knownBy[chosen];
+    $("#plPicked").hidden = !p;
+    $("#plBox").hidden = !!p;
+    if (p) { $("#plName").textContent = p.name; $("#plAddr").textContent = p.address ? " · " + p.address : ""; }
+  };
+  const closeList = () => { list.hidden = true; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); active = -1; };
+  const paint = () => {
+    if (!items.length) { closeList(); return; }
+    list.innerHTML = items.map((it, i) => it.header
+      ? `<li class="pl-head" role="presentation">${esc(it.header)}</li>`
+      : `<li role="option" id="pl-${i}" class="pl-opt${i === active ? " on" : ""}" aria-selected="${i === active}" data-i="${i}">
+           <b>${esc(it.title)}</b>${it.subtitle ? `<span>${esc(it.subtitle)}</span>` : ""}</li>`).join("");
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    if (active >= 0) input.setAttribute("aria-activedescendant", `pl-${active}`);
+  };
+  const choose = async (it) => {
+    if (!it || it.header) return;
+    closeList();
+    if (it.order != null) { chosen = it.order; }
+    else {
+      hint.textContent = "Getting the place…";
+      try { chosen = await it.pick(); hint.textContent = ""; }
+      catch { hint.textContent = "Couldn't load that place. Try again."; return; }
+    }
+    input.value = "";
+    showChosen();
+  };
+  async function search() {
+    const q = input.value.trim(), mine = ++seq, ql = q.toLowerCase();
+    const local = places.filter((p) => !ql || p.name.toLowerCase().includes(ql)).slice(0, 6)
+      .map((p) => ({ title: p.name, subtitle: "On this day's plan", order: p.order }));
+    items = local.length ? [{ header: "This day's places" }, ...local] : [];
+    active = items.findIndex((x) => !x.header);
+    paint();
+    if (q.length < 2) { hint.textContent = ""; return; }
+    try {
+      searchApi = searchApi ?? (getPlaceSearch ? await getPlaceSearch() : null);
+      if (!searchApi) { hint.textContent = "Place search needs Google Maps. Pick one of the day's places."; return; }
+      const found = await searchApi.search(q);
+      if (mine !== seq) return; // a newer keystroke won
+      items = [...items, ...(found.length ? [{ header: "Google Maps" }, ...found] : [])];
+      if (active < 0) active = items.findIndex((x) => !x.header);
+      hint.textContent = found.length || local.length ? "" : "No places found.";
+      paint();
+    } catch {
+      if (mine === seq) hint.textContent = "Place search isn't available right now. Pick one of the day's places.";
+    }
+  }
+  input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 250); });
+  input.addEventListener("focus", () => search());
+  input.addEventListener("keydown", (e) => {
+    const opts = items.map((x, i) => (x.header ? -1 : i)).filter((i) => i >= 0);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!opts.length) return;
+      const pos = opts.indexOf(active);
+      active = opts[(pos + (e.key === "ArrowDown" ? 1 : opts.length - 1)) % opts.length];
+      paint();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (active >= 0) choose(items[active]);
+    } else if (e.key === "Escape" && !list.hidden) {
+      e.preventDefault(); e.stopPropagation(); closeList();
+    }
   });
-  dlg.querySelector("#editRestore")?.addEventListener("click", () => { onRestore(ev); close(); });
+  list.addEventListener("pointerdown", (e) => e.preventDefault()); // keep focus in the input
+  list.addEventListener("click", (e) => { const li = e.target.closest("[data-i]"); if (li) choose(items[Number(li.dataset.i)]); });
+  input.addEventListener("blur", () => setTimeout(closeList, 150));
+  $("#plClear").addEventListener("click", () => { chosen = null; showChosen(); input.focus(); });
+  showChosen();
+
+  // ----- save -----
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const f = new FormData(form);
+    const title = String(f.get("title") || "").trim();
     const start = f.get("start"), endT = f.get("end");
-    if (toMin(endT) <= toMin(start)) { dlg.querySelector("#editErr").textContent = "End time has to be after the start."; return; }
+    const err = $("#editErr");
+    if (!title) { err.textContent = "Add a title."; return; }
+    if (!start || !endT) { err.textContent = "Add a start and end time."; return; }
+    if (toMin(endT) <= toMin(start)) { err.textContent = "End time has to be after the start."; return; }
     onSave({
-      ...ev,
-      title: String(f.get("title")).trim(),
-      start, end: endT,
-      place: f.get("place") ? Number(f.get("place")) : null,
-      tags: f.getAll("tags"),
+      ...ev, title, start, end: endT,
+      place: chosen,
+      tags: [...new Set(f.getAll("tags").map(cleanTag).filter(Boolean))].slice(0, 8),
       note: String(f.get("note") || "").trim(),
     });
     close();
   });
   dlg.showModal();
-  if (isNew) dlg.querySelector('input[name="title"]').focus();
+  if (isNew) $('input[name="title"]').focus();
 }

@@ -14,7 +14,9 @@ const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const BADGE = { solo: "Jey solo", booked: "Booked", multi: "Multi Pass", single: "Single Pass", standby: "Standby" };
-const tag = (cls, text) => `<span class="tag ${cls}">${esc(text)}</span>`;
+// Known tag styles get their color; anything else (custom tags) is a neutral pill. Never put user text in class.
+const TAG_CLASSES = new Set(["solo", "booked", "multi", "single", "standby", "approx", "undecided"]);
+const tag = (cls, text) => `<span class="tag ${TAG_CLASSES.has(cls) ? cls : "custom"}">${esc(text)}</span>`;
 const tagsFor = (tags = []) => (tags.length ? `<span class="tags">${tags.map((t) => tag(t, BADGE[t] || t)).join("")}</span>` : "");
 
 const ICON = {
@@ -225,7 +227,8 @@ function numbered(day, events) {
   const stopBy = Object.fromEntries(day.stops.map((s) => [s.order, s]));
   let n = 0;
   return events.map((ev) => {
-    const stop = ev.place != null ? stopBy[ev.place] : null;
+    // place is a known stop's number, or a place picked from Google search {name, lat, lng, placeId, address}
+    const stop = ev.place == null ? null : typeof ev.place === "object" ? ev.place : stopBy[ev.place];
     return { ev, stop: stop && stop.lat != null ? stop : null, num: stop && stop.lat != null ? ++n : null };
   });
 }
@@ -334,6 +337,8 @@ function wireDay(day) {
   const edit = (ev, isNew = false) =>
     openEditor({
       ev, isNew, isBase: store.isBase(ev.id), places,
+      knownTags: store.allTags(),
+      getPlaceSearch: () => placeSearch(day),
       onSave: (e) => store.upsert(e),
       onDelete: (e) => store.remove(e),
       onRestore: (e) => store.restore(e),
@@ -461,6 +466,35 @@ function loadGoogleScript() {
   });
 }
 
+// Google Places autocomplete for the editor's Location field, biased to the day's park.
+let placeSearchP = null;
+function placeSearch(day) {
+  if (!CFG.mapsKey) return Promise.resolve(null);
+  placeSearchP = placeSearchP || (async () => {
+    await loadGoogleScript();
+    const { AutocompleteSuggestion, AutocompleteSessionToken } = await google.maps.importLibrary("places");
+    let token = new AutocompleteSessionToken(); // groups keystrokes + the final pick into one billed session
+    return {
+      async search(q) {
+        const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input: q, sessionToken: token, locationBias: { center: day.center, radius: 4000 },
+        });
+        return suggestions.filter((x) => x.placePrediction).slice(0, 6).map(({ placePrediction: p }) => ({
+          title: p.mainText?.text || p.text.text,
+          subtitle: p.secondaryText?.text || "",
+          async pick() {
+            const place = p.toPlace();
+            await place.fetchFields({ fields: ["displayName", "location", "formattedAddress"] });
+            token = new AutocompleteSessionToken();
+            return { name: place.displayName, lat: place.location.lat(), lng: place.location.lng(), placeId: place.id, address: place.formattedAddress || "" };
+          },
+        }));
+      },
+    };
+  })().catch((e) => { placeSearchP = null; throw e; });
+  return placeSearchP;
+}
+
 async function setupGoogle(day) {
   await loadGoogleScript();
   const { Map, Polyline, LatLngBounds } = google.maps;
@@ -488,7 +522,7 @@ async function setupGoogle(day) {
         markers[p.ev.id] = { m, pin, num: p.num };
         bounds.extend({ lat: p.stop.lat, lng: p.stop.lng });
       });
-      const key = pins.map((p) => p.stop.order).sort().join(",");
+      const key = pins.map((p) => `${p.stop.lat},${p.stop.lng}`).sort().join("|");
       if (pins.length && key !== fitted) { map.fitBounds(bounds, 36); fitted = key; } // refit only when the set of places changes
     },
     highlight(id) {
