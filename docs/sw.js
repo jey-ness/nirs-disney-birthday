@@ -1,5 +1,5 @@
 // Offline cache: network first, cached copy when offline or slow.
-const CACHE = "orlando-trip-v6";
+const CACHE = "orlando-trip-v7";
 const FONT_CACHE = "orlando-fonts-v1";
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 // Relative to this worker's folder, so it works at / and at /repo-name/
@@ -44,7 +44,8 @@ self.addEventListener("fetch", (e) => {
   // (and is used if the network takes more than 4 seconds, e.g. weak signal in a park).
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
-      const net = fetch(e.request).then((res) => { if (res.ok) cache.put(key, res.clone()); return res; });
+      // "no-cache" makes the browser check with the server, so a new deploy shows on the next load
+      const net = fetch(e.request.url, { cache: "no-cache", credentials: "same-origin" }).then((res) => { if (res.ok) cache.put(key, res.clone()); return res; });
       const cached = await cache.match(key);
       if (!cached) return net;
       const slow = new Promise((r) => setTimeout(() => r(cached), 4000));

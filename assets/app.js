@@ -24,6 +24,7 @@ const ICON = {
   chevronUp: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>`,
   chevronDown: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B3A52" stroke-width="1.8" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`,
   arrow: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>`,
+  home: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" style="margin-bottom:2px"><path d="M4 10.5L12 4l8 6.5V20h-5.5v-5.5h-5V20H4z"/></svg>`,
   clipboard: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" style="margin-bottom:2px"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12l2 2 4-4"/></svg>`,
 };
 
@@ -113,8 +114,11 @@ function wireChecks(trip) {
 function tabbar(trip) {
   const short = { epcot: "EPCOT", "magic-kingdom": "Kingdom", "hollywood-studios": "Studios" };
   const tabs = [
-    { href: BASE, key: "home", b: "Trip", sub: "Home" },
-    ...trip.days.map((d) => ({ href: `${BASE}day/${d.slug}/`, key: d.slug, b: d.weekday, sub: short[d.slug] })),
+    { href: BASE, key: "home", icon: ICON.home, sub: "Home" },
+    ...trip.days.map((d) => ({
+      href: `${BASE}day/${d.slug}/`, key: d.slug, sub: short[d.slug],
+      b: new Date(d.date + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+    })),
     { href: BASE + "bookings/", key: "bookings", icon: ICON.clipboard, sub: "Bookings" },
   ];
   const cur = page === "day" ? daySlug : page;
