@@ -1,5 +1,5 @@
-// Offline cache: serve from cache right away, refresh in the background.
-const CACHE = "orlando-trip-v4";
+// Offline cache: network first, cached copy when offline or slow.
+const CACHE = "orlando-trip-v5";
 const FONT_CACHE = "orlando-fonts-v1";
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 // Relative to this worker's folder, so it works at / and at /repo-name/
@@ -40,13 +40,15 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== location.origin) return; // leave Google Maps alone
   // ignore ?now= test overrides so pages match their cached copy
   const key = url.pathname;
+  // Network first so updates show up at once; the cached copy is the offline fallback
+  // (and is used if the network takes more than 4 seconds, e.g. weak signal in a park).
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
+      const net = fetch(e.request).then((res) => { if (res.ok) cache.put(key, res.clone()); return res; });
       const cached = await cache.match(key);
-      const fresh = fetch(e.request)
-        .then((res) => { if (res.ok) cache.put(key, res.clone()); return res; })
-        .catch(() => cached);
-      return cached || fresh;
+      if (!cached) return net;
+      const slow = new Promise((r) => setTimeout(() => r(cached), 4000));
+      return Promise.race([net.catch(() => cached), slow]);
     })
   );
 });

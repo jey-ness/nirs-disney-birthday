@@ -36,8 +36,9 @@ def read_local_config():
             "confirmations": {k: v for k, v in conf.items() if v}}
 
 
-def encrypt(payload: bytes, password: str) -> dict:
-    salt, iv = secrets.token_bytes(16), secrets.token_bytes(16)
+def encrypt(payload: bytes, password: str, salt: bytes = None) -> dict:
+    salt = salt or secrets.token_bytes(16)
+    iv = secrets.token_bytes(16)
     keys = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, ITERATIONS, dklen=64)
     enc_key, mac_key = keys[:32], keys[32:]
     ct = subprocess.run(
@@ -52,6 +53,8 @@ def encrypt(payload: bytes, password: str) -> dict:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "docs"))
+    ap.add_argument("--new-salt", action="store_true",
+                    help="start fresh: every phone must re-enter the password and synced edits start empty")
     args = ap.parse_args()
 
     password = os.environ.get("PAGES_PASSWORD")
@@ -66,6 +69,17 @@ def main():
     payload = json.dumps({"trip": trip, "config": read_local_config()}, ensure_ascii=False).encode("utf-8")
 
     out = os.path.abspath(args.out)
+    # Keep the previous salt: the same password then gives the same key, so phones stay
+    # unlocked and live-sync edits (stored under an id derived from that key) carry over.
+    salt = None
+    prev = os.path.join(out, "data/trip.enc.json")
+    if os.path.exists(prev) and not args.new_salt:
+        try:
+            old = json.load(open(prev))
+            if old.get("iter") == ITERATIONS:
+                salt = base64.b64decode(old["salt"])
+        except (ValueError, KeyError):
+            salt = None
     if os.path.exists(out):
         keep_git = os.path.join(out, ".git")
         for name in os.listdir(out):  # never touch a .git folder
@@ -77,7 +91,7 @@ def main():
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(os.path.join(ROOT, rel), dst)
     os.makedirs(os.path.join(out, "data"), exist_ok=True)
-    json.dump(encrypt(payload, password), open(os.path.join(out, "data/trip.enc.json"), "w"))
+    json.dump(encrypt(payload, password, salt), open(os.path.join(out, "data/trip.enc.json"), "w"))
     open(os.path.join(out, "config.js"), "w").write("window.TRIP_CONFIG = { encrypted: true };\n")
     open(os.path.join(out, ".nojekyll"), "w").write("")
     open(os.path.join(out, "robots.txt"), "w").write("User-agent: *\nDisallow: /\n")
@@ -103,6 +117,7 @@ def main():
 
     print(f"Built {out}")
     print("  trip plan, confirmations and Maps key: encrypted in data/trip.enc.json")
+    print("  salt: " + ("kept from the previous build (phones stay unlocked, synced edits carry over)" if salt else "new"))
     print("  next: commit docs/ and push main; GitHub Pages serves main /docs")
 
 
