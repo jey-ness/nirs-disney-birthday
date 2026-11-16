@@ -1,0 +1,9 @@
+{
+  "name": "Orlando Trip · Nov 27–29",
+  "short_name": "Orlando",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0b1220",
+  "icons": [{ "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
