@@ -544,7 +544,11 @@ function renderLock(blob, onOpen) {
 }
 
 async function loadTrip() {
-  if (!CFG.encrypted) return { trip: await (await fetch(BASE + "data/trip.json")).json() };
+  if (!CFG.encrypted) {
+    const plain = await fetch(BASE + "data/trip.json").catch(() => null);
+    if (plain && plain.ok) return { trip: await plain.json() };
+    CFG.encrypted = true; // no readable plan here: this is the encrypted build
+  }
   const blob = await (await fetch(BASE + "data/trip.enc.json")).json();
   const key = savedKey();
   if (key) {

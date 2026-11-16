@@ -1,16 +1,16 @@
 # This repo is PUBLIC. Only the encrypted build in docs/ may hold trip data.
 
 # Readable trip plan: local only (encrypted copy lives in docs/data/trip.enc.json)
-data/trip.json
+/data/trip.json
 
 # Secrets
 .env
 .env.*
-config.js
-data/private.json
+/config.js
+/data/private.json
 
 # Brief contains booking confirmation numbers
-orlando-trip-site-brief.md
+/orlando-trip-site-brief.md
 
 .DS_Store
 .pages-test/
