@@ -186,6 +186,7 @@ function renderHome(trip) {
             <span><span class="dow">${esc(d.weekday)}</span><span class="dnum">${Number(d.date.slice(8))}</span></span>
             <span>
               <span class="park">${esc(d.park)}</span>
+              ${d.hours ? `<span class="hours">Open ${esc(d.hours)}</span>` : ""}
               <span class="sum">${d.birthdayTag ? `<em>${esc(d.birthdayTag)}</em> ` : ""}${esc(d.summary)}</span>
               <span class="tags">${tags}</span>
             </span>
@@ -313,7 +314,7 @@ function renderDay(trip, day) {
   return `
   <main>
     <header class="head">
-      <div class="kicker">${esc(longDate(day.date))}</div>
+      <div class="kicker">${esc(longDate(day.date))}${day.hours ? ` · Open ${esc(day.hours)}` : ""}</div>
       <h1>${esc(day.park)}</h1>
       ${day.birthdayLine ? `<p class="bday">${esc(day.birthdayLine)}</p>` : ""}
       <p class="lede">${esc(day.why)}</p>
