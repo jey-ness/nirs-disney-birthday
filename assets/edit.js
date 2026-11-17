@@ -53,8 +53,9 @@ export function createStore(trip) {
       const start = toMin(r.start);
       const next = arr[i + 1] ? toMin(arr[i + 1].start) : null;
       const end = r.end ? toMin(r.end) : next && next - start <= 180 ? next : start + (next ? 60 : 90);
-      base[`${d.slug}-${i}`] = {
-        id: `${d.slug}-${i}`, day: d.slug, title: r.text, start: toHM(start), end: toHM(end),
+      const id = r.id || `${d.slug}-${i}`; // permanent ids keep synced edits on the right event when the plan is reordered
+      base[id] = {
+        id, day: d.slug, title: r.text, start: toHM(start), end: toHM(end),
         place: r.stop ?? null, tags: r.tags || [], note: "", base: true,
       };
     });

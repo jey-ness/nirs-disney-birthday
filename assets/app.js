@@ -169,10 +169,33 @@ function renderHome(trip) {
         .join("")}
     </div>
 
+    ${trip.flights?.length ? `
+    <h2 class="label">Flights</h2>
+    <div class="rows">
+      ${trip.flights.map((f) => `<div class="flight">
+        <span class="fl-day"><span class="dow">${esc(f.label)}</span><span class="fl-date">${esc(f.day.replace(/^\w+ /, ""))}</span></span>
+        <span class="fl-main">
+          <span class="fl-times serif">${esc(f.dep)} <span aria-hidden="true">→</span><span class="sr-only"> to </span> ${esc(f.arr)}</span>
+          <span class="muted">${esc(f.from)} → ${esc(f.to)} · ${esc(f.flight)} · ${esc(f.duration)} · ${esc(f.day.split(" ")[0])}</span>
+        </span>
+      </div>`).join("")}
+    </div>` : ""}
+
+    ${trip.stay ? `
+    <h2 class="label">Staying at</h2>
+    <div class="rows">
+      <div class="stay">
+        <span class="stay-name serif">${esc(trip.stay.name)}</span>
+        <span class="muted">${esc(trip.stay.address)}</span>
+        ${trip.stay.note ? `<span class="muted">${esc(trip.stay.note)}</span>` : ""}
+        <a class="dir" href="${esc(mapsUrl({ name: trip.stay.name, query: trip.stay.query || trip.stay.name }, ""))}" target="_blank" rel="noopener">Directions ${ICON.arrow}</a>
+      </div>
+    </div>` : ""}
+
     <h2 class="label">Still open</h2>
     <div class="rows">
       ${trip.openItems
-        .map((o) => `<div class="openrow"><span><b>${esc(o.label)}</b><span class="muted">${esc(o.detail)}</span></span>${tag("undecided", "Undecided")}</div>`)
+        .map((o) => `<div class="openrow"><span><b>${esc(o.label)}</b><span class="muted">${esc(o.detail)}</span></span>${tag("undecided", o.status || "Undecided")}</div>`)
         .join("")}
     </div>
   </main>
