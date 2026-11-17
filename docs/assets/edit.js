@@ -62,6 +62,24 @@ export function createStore(trip) {
   }
   const read = () => { try { return JSON.parse(localStorage.getItem(EDIT_STORE)) || { events: {}, dirty: false }; } catch { return { events: {}, dirty: false }; } };
   let state = read();
+  state.events = state.events || {};
+  state.todos = state.todos || {};
+
+  // to-dos: base items from data/trip.json, plus per-item overrides and additions in state.todos
+  const baseTodos = {}, baseGroups = [];
+  (trip.toBook || []).forEach((g) => {
+    baseGroups.push(g.group);
+    g.items.forEach((it, i) => (baseTodos[it.id] = { id: it.id, label: it.label, detail: it.detail || "", group: g.group, order: i }));
+  });
+  // one-time move of ticks saved by the older per-phone checklist
+  try {
+    const old = JSON.parse(localStorage.getItem("orlando-trip-checks-v1") || "null");
+    if (old) {
+      for (const id of Object.keys(old)) if (old[id] && baseTodos[id] && !state.todos[id]) state.todos[id] = { id, done: true, updatedAt: Date.now() };
+      state.dirty = true;
+      localStorage.removeItem("orlando-trip-checks-v1");
+    }
+  } catch { /* ignore */ }
   const write = () => { try { localStorage.setItem(EDIT_STORE, JSON.stringify(state)); } catch { /* private mode */ } };
   const listeners = new Set();
   const emit = (src) => listeners.forEach((fn) => fn(src));
@@ -78,11 +96,29 @@ export function createStore(trip) {
     for (const e of Object.values(state.events)) if (!base[e.id] && e.day === slug && !e.deleted) out.push({ ...e });
     return out.sort((a, b) => toMin(a.start) - toMin(b.start) || toMin(a.end) - toMin(b.end) || a.id.localeCompare(b.id));
   }
-  function touch(id, rec) {
-    state.events[id] = { ...rec, id, updatedAt: Date.now() };
+  function touch(id, rec, kind = "events") {
+    state[kind][id] = { ...rec, id, updatedAt: Date.now() };
     state.dirty = true;
     write();
     emit("local");
+  }
+
+  function todoGroups() {
+    const items = [];
+    for (const b of Object.values(baseTodos)) {
+      const o = state.todos[b.id];
+      if (o?.removed) continue;
+      items.push({ ...b, ...(o ? { label: o.label ?? b.label, detail: o.detail ?? b.detail, group: o.group ?? b.group, done: !!o.done } : { done: false }) });
+    }
+    for (const o of Object.values(state.todos)) {
+      if (baseTodos[o.id] || o.removed || !o.label) continue;
+      items.push({ id: o.id, label: o.label, detail: o.detail || "", group: o.group || "Other", done: !!o.done, order: 1000 + (o.createdAt || 0) / 1e13 });
+    }
+    const extra = [...new Set(Object.values(state.todos).filter((o) => !baseTodos[o.id] && o.group).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map((o) => o.group))];
+    const order = [...baseGroups, ...extra.filter((g) => !baseGroups.includes(g))];
+    return order
+      .map((group) => ({ group, items: items.filter((i) => i.group === group).sort((a, b) => a.order - b.order) }))
+      .filter((g) => g.items.length);
   }
   return {
     eventsFor,
@@ -92,18 +128,24 @@ export function createStore(trip) {
     upsert: (ev) => touch(ev.id, { day: ev.day, ...pick(ev) }),
     remove: (ev) => touch(ev.id, { day: ev.day, deleted: true }),
     restore: (ev) => touch(ev.id, { day: ev.day, reset: true }),
-    snapshot: () => ({ events: state.events }),
+    snapshot: () => ({ events: state.events, todos: state.todos }),
+    todoGroups,
+    allGroups: () => [...new Set([...baseGroups, ...Object.values(state.todos).map((o) => o.group).filter(Boolean)])],
+    setDone: (id, done) => touch(id, { ...(state.todos[id] || {}), done }, "todos"),
+    clearTodo: (id) => touch(id, { ...(state.todos[id] || {}), removed: true }, "todos"),
+    addTodo: ({ label, detail, group }) => touch(uid(), { label, detail, group, done: false, createdAt: Date.now() }, "todos"),
     isDirty: () => state.dirty,
     markClean() { state.dirty = false; write(); },
     // last write wins, per event
     mergeRemote(remote) {
       let changed = false, localNewer = false;
-      const r = remote?.events || {};
-      for (const [id, e] of Object.entries(r)) {
-        const mine = state.events[id];
-        if (!mine || e.updatedAt > mine.updatedAt) { state.events[id] = e; changed = true; }
+      for (const kind of ["events", "todos"]) {
+        const r = remote?.[kind] || {}, mine = state[kind];
+        for (const [id, e] of Object.entries(r)) {
+          if (!mine[id] || e.updatedAt > mine[id].updatedAt) { mine[id] = e; changed = true; }
+        }
+        for (const [id, e] of Object.entries(mine)) if (!r[id] || e.updatedAt > r[id].updatedAt) localNewer = true;
       }
-      for (const [id, e] of Object.entries(state.events)) if (!r[id] || e.updatedAt > r[id].updatedAt) localNewer = true;
       if (changed) { write(); emit("remote"); }
       return { changed, localNewer };
     },
@@ -149,7 +191,8 @@ export function createSync(store, { bits, supabase }) {
       for (let attempt = 0; attempt < 4; attempt++) {
         set(store.isDirty() ? "saving" : "checking");
         const { edits, version } = await fetchRemote();
-        const { localNewer } = edits ? store.mergeRemote(edits) : { localNewer: Object.keys(store.snapshot().events).length > 0 };
+        const snap = store.snapshot();
+        const { localNewer } = edits ? store.mergeRemote(edits) : { localNewer: Object.keys(snap.events).length + Object.keys(snap.todos).length > 0 };
         if (!localNewer) { store.markClean(); set("synced"); break; }
         const blob = await encryptWithBits(store.snapshot(), bits);
         const v = await rpc("trip_put", { p_id: await id(), p_data: JSON.stringify(blob), p_version: version });
@@ -496,4 +539,58 @@ export function openEditor({ ev, isNew, isBase, places, knownTags = [], getPlace
   });
   dlg.showModal();
   if (isNew) $('input[name="title"]').focus();
+}
+
+// ---------- add to-do sheet ----------
+export function openTodoSheet({ groups, defaultGroup, onSave }) {
+  document.getElementById("todoSheet")?.remove();
+  const NEW = "__new__";
+  const dlg = document.createElement("dialog");
+  dlg.id = "todoSheet";
+  dlg.className = "sheet";
+  dlg.setAttribute("aria-labelledby", "todoTitle");
+  dlg.innerHTML = `
+    <form method="dialog" class="sheet-body" novalidate>
+      <div class="sheet-top">
+        <button type="button" class="sheet-x" data-close aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <h2 id="todoTitle">New to-do</h2>
+        <button type="submit" class="sheet-save">Add</button>
+      </div>
+      <label class="fld"><span class="label">To-do</span>
+        <input name="label" type="text" maxlength="120" placeholder="What needs doing?" autocomplete="off" enterkeyhint="done"></label>
+      <label class="fld"><span class="label">Details (optional)</span>
+        <input name="detail" type="text" maxlength="160" placeholder="Date, time, who, where…" autocomplete="off"></label>
+      <label class="fld"><span class="label">Category</span>
+        <select name="group">
+          ${groups.map((g) => `<option value="${esc(g)}" ${g === defaultGroup ? "selected" : ""}>${esc(g)}</option>`).join("")}
+          <option value="${NEW}">+ New category…</option>
+        </select></label>
+      <label class="fld" id="newGroupFld" hidden><span class="label">New category name</span>
+        <input name="newGroup" type="text" maxlength="40" placeholder="e.g. Packing" autocomplete="off"></label>
+      <p class="err" role="alert"></p>
+    </form>`;
+  document.body.appendChild(dlg);
+  const form = dlg.querySelector("form");
+  const close = () => { dlg.close(); dlg.remove(); };
+  dlg.addEventListener("cancel", (e) => { e.preventDefault(); close(); });
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) close(); });
+  dlg.querySelector("[data-close]").addEventListener("click", close);
+  const sel = form.elements.group, newFld = dlg.querySelector("#newGroupFld");
+  const syncNew = () => { newFld.hidden = sel.value !== NEW; if (!newFld.hidden) form.elements.newGroup.focus(); };
+  sel.addEventListener("change", syncNew);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const label = form.elements.label.value.replace(/\s+/g, " ").trim();
+    const detail = form.elements.detail.value.replace(/\s+/g, " ").trim();
+    const group = sel.value === NEW ? form.elements.newGroup.value.replace(/\s+/g, " ").trim() : sel.value;
+    const err = dlg.querySelector(".err");
+    if (!label) { err.textContent = "Add what needs doing."; form.elements.label.focus(); return; }
+    if (!group) { err.textContent = "Name the new category."; form.elements.newGroup.focus(); return; }
+    onSave({ label, detail, group });
+    close();
+  });
+  dlg.showModal();
+  form.elements.label.focus();
 }

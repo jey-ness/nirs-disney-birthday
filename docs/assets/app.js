@@ -1,4 +1,5 @@
-import { createStore, createSync, renderCalendar, openEditor, toMin, toHM, fmtClock, fmtRange, SYNC_TEXT } from "./edit.js";
+import { createStore, createSync, renderCalendar, openEditor, openTodoSheet, toMin, toHM, fmtClock, fmtRange, SYNC_TEXT } from "./edit.js";
+import { EXPLORE } from "./explore.js";
 
 // Orlando trip site. No build step: plain ES module.
 // Optional /config.js (git-ignored) sets window.TRIP_CONFIG = { mapsKey, mapId, confirmations }.
@@ -66,48 +67,76 @@ function mapsUrl(stop, park) {
   return u.toString();
 }
 
-// ---------- checklist storage (shared by home drawer + bookings) ----------
-const STORE = "orlando-trip-checks-v1";
-function loadChecks() {
-  try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
-}
-function saveChecks(c) {
-  try { localStorage.setItem(STORE, JSON.stringify(c)); } catch { /* private mode: ticks won't persist */ }
-}
-const allTodos = (trip) => trip.toBook.flatMap((g) => g.items);
-const doneCount = (trip, c = loadChecks()) => allTodos(trip).filter((i) => c[i.id]).length;
+// ---------- to-do list (home drawer + bookings; saved on the phone and synced via the store) ----------
+const OPEN_STORE = "orlando-trip-open-groups-v1";
+const loadOpen = () => { try { return JSON.parse(localStorage.getItem(OPEN_STORE)) || null; } catch { return null; } };
+const saveOpen = (o) => { try { localStorage.setItem(OPEN_STORE, JSON.stringify(o)); } catch { /* ignore */ } };
+let lastGroup = null;
 
-function checklist(items, checks) {
+function todoItemsHtml(items) {
   return `<ul class="check">${items
-    .map(
-      (i) => `<li><label><input type="checkbox" data-id="${esc(i.id)}" ${checks[i.id] ? "checked" : ""}>
-      <span><span class="lt">${esc(i.label)}</span>${i.detail ? `<br><span class="muted">${esc(i.detail)}</span>` : ""}</span></label></li>`
-    )
+    .map((i) => `<li class="${i.done ? "done" : ""}">
+      <label><input type="checkbox" data-todo="${esc(i.id)}" ${i.done ? "checked" : ""}>
+        <span><span class="lt">${esc(i.label)}</span>${i.detail ? `<br><span class="muted">${esc(i.detail)}</span>` : ""}</span></label>
+      ${i.done ? `<button type="button" class="clearbtn" data-clear="${esc(i.id)}" aria-label="Clear ${esc(i.label)} from the list">Clear</button>` : ""}
+    </li>`)
     .join("")}</ul>`;
 }
 
-function refreshProgress(trip) {
-  const total = allTodos(trip).length;
-  const done = doneCount(trip);
-  const pct = Math.round((done / total) * 100);
-  document.querySelectorAll("[data-progress-text]").forEach((el) => (el.textContent = `${done} of ${total} done`));
-  document.querySelectorAll("[data-progress-bar]").forEach((el) => (el.style.width = pct + "%"));
-  document.querySelectorAll("[data-group-count]").forEach((el) => {
-    const g = trip.toBook.find((x) => x.group === el.dataset.groupCount);
-    const c = loadChecks();
-    el.textContent = `${g.items.filter((i) => c[i.id]).length} of ${g.items.length} done`;
-  });
+function renderTodos(mode) {
+  const box = document.getElementById("todoBox");
+  if (!box) return;
+  const groups = store.todoGroups();
+  const empty = `<p class="muted" style="margin:12px 0">Nothing left to do. Add something with + Add.</p>`;
+  if (mode === "drawer") {
+    box.innerHTML = groups.map((g) => `<span class="label">${esc(g.group)}</span>${todoItemsHtml(g.items)}`).join("") || empty;
+  } else {
+    const open = loadOpen() || (groups[0] ? { [groups[0].group]: true } : {});
+    box.innerHTML = groups
+      .map((g) => `<details class="group" data-group="${esc(g.group)}" ${open[g.group] ? "open" : ""}>
+        <summary><span><b>${esc(g.group)}</b><span class="muted">${g.items.filter((i) => i.done).length} of ${g.items.length} done</span></span>${ICON.chevronDown}</summary>
+        ${todoItemsHtml(g.items)}
+      </details>`)
+      .join("") || empty;
+  }
+  const all = groups.flatMap((g) => g.items), done = all.filter((i) => i.done).length;
+  document.querySelectorAll("[data-progress-text]").forEach((el) => (el.textContent = `${done} of ${all.length} done`));
+  document.querySelectorAll("[data-progress-bar]").forEach((el) => (el.style.width = (all.length ? Math.round((done / all.length) * 100) : 0) + "%"));
 }
 
-function wireChecks(trip) {
+function wireTodos(mode) {
   document.addEventListener("change", (e) => {
-    const box = e.target.closest("input[data-id]");
-    if (!box) return;
-    const c = loadChecks();
-    if (box.checked) c[box.dataset.id] = true; else delete c[box.dataset.id];
-    saveChecks(c);
-    refreshProgress(trip);
+    const box = e.target.closest("input[data-todo]");
+    if (box) store.setDone(box.dataset.todo, box.checked);
   });
+  document.addEventListener("click", (e) => {
+    const clear = e.target.closest("[data-clear]");
+    if (clear) { store.clearTodo(clear.dataset.clear); return; }
+    if (e.target.closest("[data-add-todo]")) {
+      const groups = store.allGroups();
+      openTodoSheet({
+        groups, defaultGroup: lastGroup || groups[0],
+        onSave: (t) => {
+          lastGroup = t.group;
+          const open = loadOpen() || {};
+          open[t.group] = true; // show the category the new item landed in
+          saveOpen(open);
+          store.addTodo(t);
+        },
+      });
+    }
+  });
+  // remember which categories are open (toggle doesn't bubble, so listen in the capture phase)
+  document.addEventListener("toggle", (e) => {
+    if (!e.target.matches?.("details.group")) return;
+    const open = {};
+    document.querySelectorAll("details.group").forEach((x) => { if (x.open) open[x.dataset.group] = true; });
+    saveOpen(open);
+  }, true);
+  const statusEl = document.getElementById("syncStatus");
+  if (statusEl) sync.onStatus((st) => { statusEl.textContent = SYNC_TEXT[st] || ""; statusEl.dataset.state = st; });
+  store.onChange(() => renderTodos(mode));
+  renderTodos(mode);
 }
 
 // ---------- chrome ----------
@@ -117,7 +146,7 @@ function tabbar(trip) {
     { href: BASE, key: "home", icon: ICON.home, sub: "Home" },
     ...trip.days.map((d) => ({
       href: `${BASE}day/${d.slug}/`, key: d.slug, sub: short[d.slug],
-      b: new Date(d.date + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+      b: `${Number(d.date.slice(5, 7))}/${Number(d.date.slice(8, 10))}`, // 11/27
     })),
     { href: BASE + "bookings/", key: "bookings", icon: ICON.clipboard, sub: "Bookings" },
   ];
@@ -135,9 +164,6 @@ function renderHome(trip) {
     toGo > 0 ? `<b>${toGo}</b><span>day${toGo === 1 ? "" : "s"} to go · ${esc(trip.crowdNote.replace(/^Thanksgiving weekend: /, "Thanksgiving weekend, "))}</span>`
     : toGo > -3 ? `<b>Today</b><span>The trip is on. ${esc(trip.crowdNote)}</span>`
     : `<span>Trip complete.</span>`;
-  const checks = loadChecks();
-  const total = allTodos(trip).length;
-  const done = doneCount(trip, checks);
   return `
   <main>
     <header class="head">
@@ -204,13 +230,14 @@ function renderHome(trip) {
     <button type="button" class="drawer-handle" id="drawerToggle" aria-expanded="false" aria-controls="drawerBody">
       <span class="grip" aria-hidden="true"></span>
       <span class="line">
-        <span class="title"><span>To do</span><span class="muted" data-progress-text>${done} of ${total} done</span></span>
+        <span class="title"><span>To do</span><span class="muted" data-progress-text></span></span>
         <span class="act"><span id="drawerAct">Open</span>${ICON.chevronUp}</span>
       </span>
-      <span class="progress" aria-hidden="true"><span data-progress-bar style="width:${Math.round((done / total) * 100)}%"></span></span>
+      <span class="progress" aria-hidden="true"><span data-progress-bar></span></span>
     </button>
     <div class="drawer-body" id="drawerBody">
-      ${trip.toBook.map((g) => `<span class="label">${esc(g.group)}</span>${checklist(g.items, checks)}`).join("")}
+      <div class="todo-tools"><span class="sync" id="syncStatus" aria-live="polite"></span><button type="button" class="addbtn" data-add-todo>+ Add</button></div>
+      <div id="todoBox"></div>
       <p style="margin:16px 0 0"><a href="${BASE}bookings/" style="font-size:14px;font-weight:600">See all bookings and confirmations</a></p>
     </div>
   </section>`;
@@ -316,7 +343,31 @@ function renderDay(trip, day) {
       <button type="button" class="addbtn" id="addEv">+ Add</button>
     </div>
     <div id="dayBody"></div>
+    ${exploreHtml(day)}
   </main>`;
+}
+
+function exploreHtml(day) {
+  const list = EXPLORE[day.slug] || [];
+  if (!list.length) return "";
+  const levelTag = (l) => (l === "thrill" ? tag("solo", "Thrill") : l === "moderate" ? tag("custom", "Moderate") : "");
+  return `<details class="explore" id="explore">
+    <summary><span><b class="serif">Explore more</b><span class="muted">${list.length} other things to do in ${esc(day.park)}</span></span>${ICON.chevronDown}</summary>
+    <p class="muted" style="margin:0 0 4px;font-size:13px">Not in the plan yet. Check the Disney app for closures and show times.</p>
+    <ul class="xlist">${list
+      .map((x, i) => `<li>
+        <div class="xmain">
+          <span class="xname">${esc(x.name)}</span>
+          <span class="muted">${esc(x.area)} · ${esc(x.kind)}${x.note ? " · " + esc(x.note) : ""}</span>
+          ${levelTag(x.level) ? `<span class="tags">${levelTag(x.level)}</span>` : ""}
+        </div>
+        <div class="xact">
+          <button type="button" class="addbtn small" data-plan="${i}" aria-label="Add ${esc(x.name)} to the plan">+ Plan</button>
+          <a class="dir" href="${esc(mapsUrl({ name: x.name, query: `${x.name}, ${day.park}, Walt Disney World` }, day.park))}" target="_blank" rel="noopener" aria-label="${esc(x.name)} in Google Maps">Map ${ICON.arrow}</a>
+        </div>
+      </li>`)
+      .join("")}</ul>
+  </details>`;
 }
 
 function listHtml(day, items, cur) {
@@ -420,6 +471,15 @@ function wireDay(day) {
     if (e.target.closest("a")) return;
     const li = e.target.closest("#sched li.stop");
     if (li) select(li.dataset.id, "list");
+  });
+
+  document.getElementById("explore")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-plan]");
+    if (!b) return;
+    const x = EXPLORE[day.slug][Number(b.dataset.plan)];
+    const evs = store.eventsFor(day.slug);
+    const start = evs.length ? Math.min(Math.ceil(toMin(evs.at(-1).end) / 30) * 30, 22 * 60) : 12 * 60;
+    edit({ ...blank(start), title: x.name, note: x.note || "" }, true);
   });
 
   const statusEl = document.getElementById("syncStatus");
@@ -567,24 +627,16 @@ async function setupGoogle(day) {
 }
 
 // ---------- bookings ----------
-const OPEN_STORE = "orlando-trip-open-groups-v1";
-function loadOpen() {
-  try { return JSON.parse(localStorage.getItem(OPEN_STORE)) || null; } catch { return null; }
-}
 
 function renderBookings(trip) {
-  const checks = loadChecks();
   const conf = CFG.confirmations || {};
-  const total = allTodos(trip).length;
-  const done = doneCount(trip, checks);
-  const open = loadOpen() || { [trip.toBook[0].group]: true };
   return `
   <main>
     <header class="head">
       <div class="kicker">Bookings</div>
       <h1>Reservations<br>&amp; to-do</h1>
-      <span class="muted" data-progress-text>${done} of ${total} done</span>
-      <span class="progress" aria-hidden="true"><span data-progress-bar style="width:${Math.round((done / total) * 100)}%"></span></span>
+      <span class="muted" data-progress-text></span>
+      <span class="progress" aria-hidden="true"><span data-progress-bar></span></span>
     </header>
 
     <h2>Booked</h2>
@@ -598,30 +650,15 @@ function renderBookings(trip) {
       )
       .join("")}
 
-    <h2>To do</h2>
-    ${trip.toBook
-      .map((g) => {
-        const gDone = g.items.filter((i) => checks[i.id]).length;
-        return `<details class="group" data-group="${esc(g.group)}" ${open[g.group] ? "open" : ""}>
-          <summary><span><b>${esc(g.group)}</b><span class="muted" data-group-count="${esc(g.group)}">${gDone} of ${g.items.length} done</span></span>${ICON.chevronDown}</summary>
-          ${checklist(g.items, checks)}
-        </details>`;
-      })
-      .join("")}
-    <p class="muted" style="margin-top:16px;font-size:13px">Ticks are saved on this phone.</p>
-    ${CFG.encrypted ? `<p style="margin-top:8px"><button type="button" class="linkbtn" id="lockNow">Lock this phone</button></p>` : ""}
+    <div class="dayhead"><h2>To do</h2><button type="button" class="addbtn" data-add-todo>+ Add</button></div>
+    <p class="sync" id="syncStatus" aria-live="polite" style="margin:8px 0 0"></p>
+    <div id="todoBox"></div>
+    ${CFG.encrypted ? `<p style="margin-top:16px"><button type="button" class="linkbtn" id="lockNow">Lock this phone</button></p>` : ""}
   </main>`;
 }
 
 function wireBookings() {
   document.getElementById("lockNow")?.addEventListener("click", () => { forgetKey(); location.href = BASE; });
-  document.querySelectorAll("details.group").forEach((d) =>
-    d.addEventListener("toggle", () => {
-      const state = {};
-      document.querySelectorAll("details.group").forEach((x) => { if (x.open) state[x.dataset.group] = true; });
-      try { localStorage.setItem(OPEN_STORE, JSON.stringify(state)); } catch { /* ignore */ }
-    })
-  );
 }
 
 // ---------- password lock (encrypted build for GitHub Pages) ----------
@@ -714,13 +751,13 @@ async function boot() {
     app.innerHTML = `<main><header class="head"><h1>Offline</h1><p class="lede">Couldn't load the trip plan. Open the site once with signal so it's saved for offline use.</p></header></main>`;
     return;
   }
-  if (page === "home") { app.innerHTML = renderHome(trip); wireHome(); wireChecks(trip); }
-  else if (page === "bookings") { app.innerHTML = renderBookings(trip); wireBookings(); wireChecks(trip); }
+  store = createStore(trip);
+  sync = createSync(store, { bits: KEY_BITS, supabase: CFG.supabaseUrl ? { url: CFG.supabaseUrl, anonKey: CFG.supabaseAnonKey } : null });
+  if (page === "home") { app.innerHTML = renderHome(trip); wireHome(); wireTodos("drawer"); }
+  else if (page === "bookings") { app.innerHTML = renderBookings(trip); wireBookings(); wireTodos("page"); }
   else if (page === "day") {
     const day = trip.days.find((d) => d.slug === daySlug);
     document.title = `${day.park} · ${day.label}`;
-    store = createStore(trip);
-    sync = createSync(store, { bits: KEY_BITS, supabase: CFG.supabaseUrl ? { url: CFG.supabaseUrl, anonKey: CFG.supabaseAnonKey } : null });
     app.innerHTML = renderDay(trip, day);
     wireDay(day);
   }
