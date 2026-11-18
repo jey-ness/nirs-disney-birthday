@@ -66,11 +66,14 @@ export function createStore(trip) {
   state.todos = state.todos || {};
 
   // to-dos: base items from data/trip.json, plus per-item overrides and additions in state.todos
-  const baseTodos = {}, baseGroups = [];
-  (trip.toBook || []).forEach((g) => {
-    baseGroups.push(g.group);
-    g.items.forEach((it, i) => (baseTodos[it.id] = { id: it.id, label: it.label, detail: it.detail || "", group: g.group, order: i }));
-  });
+  // two lists share this store: "todo" (trip.toBook) and "packing" (trip.packing)
+  const baseTodos = {}, baseGroups = { todo: [], packing: [] };
+  [["todo", trip.toBook], ["packing", trip.packing]].forEach(([list, groups]) =>
+    (groups || []).forEach((g) => {
+      baseGroups[list].push(g.group);
+      g.items.forEach((it, i) => (baseTodos[it.id] = { id: it.id, label: it.label, detail: it.detail || "", group: g.group, order: i, list }));
+    }));
+  const listOf = (o) => baseTodos[o.id]?.list || o.list || "todo";
   // one-time move of ticks saved by the older per-phone checklist
   try {
     const old = JSON.parse(localStorage.getItem("orlando-trip-checks-v1") || "null");
@@ -103,19 +106,20 @@ export function createStore(trip) {
     emit("local");
   }
 
-  function todoGroups() {
+  function todoGroups(list = "todo") {
     const items = [];
     for (const b of Object.values(baseTodos)) {
+      if (b.list !== list) continue;
       const o = state.todos[b.id];
       if (o?.removed) continue;
       items.push({ ...b, ...(o ? { label: o.label ?? b.label, detail: o.detail ?? b.detail, group: o.group ?? b.group, done: !!o.done } : { done: false }) });
     }
     for (const o of Object.values(state.todos)) {
-      if (baseTodos[o.id] || o.removed || !o.label) continue;
+      if (baseTodos[o.id] || o.removed || !o.label || listOf(o) !== list) continue;
       items.push({ id: o.id, label: o.label, detail: o.detail || "", group: o.group || "Other", done: !!o.done, order: 1000 + (o.createdAt || 0) / 1e13 });
     }
-    const extra = [...new Set(Object.values(state.todos).filter((o) => !baseTodos[o.id] && o.group).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map((o) => o.group))];
-    const order = [...baseGroups, ...extra.filter((g) => !baseGroups.includes(g))];
+    const extra = [...new Set(Object.values(state.todos).filter((o) => !baseTodos[o.id] && o.group && listOf(o) === list).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map((o) => o.group))];
+    const order = [...baseGroups[list], ...extra.filter((g) => !baseGroups[list].includes(g))];
     return order
       .map((group) => ({ group, items: items.filter((i) => i.group === group).sort((a, b) => a.order - b.order) }))
       .filter((g) => g.items.length);
@@ -130,10 +134,10 @@ export function createStore(trip) {
     restore: (ev) => touch(ev.id, { day: ev.day, reset: true }),
     snapshot: () => ({ events: state.events, todos: state.todos }),
     todoGroups,
-    allGroups: () => [...new Set([...baseGroups, ...Object.values(state.todos).map((o) => o.group).filter(Boolean)])],
+    allGroups: (list = "todo") => [...new Set([...baseGroups[list], ...Object.values(state.todos).filter((o) => listOf(o) === list).map((o) => o.group).filter(Boolean)])],
     setDone: (id, done) => touch(id, { ...(state.todos[id] || {}), done }, "todos"),
     clearTodo: (id) => touch(id, { ...(state.todos[id] || {}), removed: true }, "todos"),
-    addTodo: ({ label, detail, group }) => touch(uid(), { label, detail, group, done: false, createdAt: Date.now() }, "todos"),
+    addTodo: ({ label, detail, group, list = "todo" }) => touch(uid(), { label, detail, group, list, done: false, createdAt: Date.now() }, "todos"),
     isDirty: () => state.dirty,
     markClean() { state.dirty = false; write(); },
     // last write wins, per event
@@ -542,7 +546,7 @@ export function openEditor({ ev, isNew, isBase, places, knownTags = [], getPlace
 }
 
 // ---------- add to-do sheet ----------
-export function openTodoSheet({ groups, defaultGroup, onSave }) {
+export function openTodoSheet({ groups, defaultGroup, onSave, packing = false }) {
   document.getElementById("todoSheet")?.remove();
   const NEW = "__new__";
   const dlg = document.createElement("dialog");
@@ -555,13 +559,13 @@ export function openTodoSheet({ groups, defaultGroup, onSave }) {
         <button type="button" class="sheet-x" data-close aria-label="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
-        <h2 id="todoTitle">New to-do</h2>
+        <h2 id="todoTitle">${packing ? "Add to packing" : "New to-do"}</h2>
         <button type="submit" class="sheet-save">Add</button>
       </div>
-      <label class="fld"><span class="label">To-do</span>
-        <input name="label" type="text" maxlength="120" placeholder="What needs doing?" autocomplete="off" enterkeyhint="done"></label>
+      <label class="fld"><span class="label">${packing ? "Item" : "To-do"}</span>
+        <input name="label" type="text" maxlength="120" placeholder="${packing ? "What to bring?" : "What needs doing?"}" autocomplete="off" enterkeyhint="done"></label>
       <label class="fld"><span class="label">Details (optional)</span>
-        <input name="detail" type="text" maxlength="160" placeholder="Date, time, who, where…" autocomplete="off"></label>
+        <input name="detail" type="text" maxlength="160" placeholder="${packing ? "How many, whose, notes…" : "Date, time, who, where…"}" autocomplete="off"></label>
       <label class="fld"><span class="label">Category</span>
         <select name="group">
           ${groups.map((g) => `<option value="${esc(g)}" ${g === defaultGroup ? "selected" : ""}>${esc(g)}</option>`).join("")}

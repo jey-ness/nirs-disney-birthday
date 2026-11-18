@@ -104,6 +104,19 @@ function renderTodos(mode) {
   document.querySelectorAll("[data-progress-bar]").forEach((el) => (el.style.width = (all.length ? Math.round((done / all.length) * 100) : 0) + "%"));
 }
 
+function renderPacking() {
+  const box = document.getElementById("packBox");
+  if (!box) return;
+  const groups = store.todoGroups("packing");
+  const open = loadOpen() || {};
+  box.innerHTML = groups
+    .map((g) => `<details class="group" data-group="${esc(g.group)}" ${open[g.group] ? "open" : ""}>
+      <summary><span><b>${esc(g.group)}</b><span class="muted">${g.items.filter((i) => i.done).length} of ${g.items.length} packed</span></span>${ICON.chevronDown}</summary>
+      ${todoItemsHtml(g.items)}
+    </details>`)
+    .join("") || `<p class="muted" style="margin:12px 0">Nothing on the list. Add something with + Add.</p>`;
+}
+
 function wireTodos(mode) {
   document.addEventListener("change", (e) => {
     const box = e.target.closest("input[data-todo]");
@@ -112,6 +125,19 @@ function wireTodos(mode) {
   document.addEventListener("click", (e) => {
     const clear = e.target.closest("[data-clear]");
     if (clear) { store.clearTodo(clear.dataset.clear); return; }
+    if (e.target.closest("[data-add-pack]")) {
+      const groups = store.allGroups("packing");
+      openTodoSheet({
+        groups, defaultGroup: groups[0], packing: true,
+        onSave: (t) => {
+          const open = loadOpen() || {};
+          open[t.group] = true;
+          saveOpen(open);
+          store.addTodo({ ...t, list: "packing" });
+        },
+      });
+      return;
+    }
     if (e.target.closest("[data-add-todo]")) {
       const groups = store.allGroups();
       openTodoSheet({
@@ -135,8 +161,9 @@ function wireTodos(mode) {
   }, true);
   const statusEl = document.getElementById("syncStatus");
   if (statusEl) sync.onStatus((st) => { statusEl.textContent = SYNC_TEXT[st] || ""; statusEl.dataset.state = st; });
-  store.onChange(() => renderTodos(mode));
+  store.onChange(() => { renderTodos(mode); renderPacking(); });
   renderTodos(mode);
+  renderPacking();
 }
 
 // ---------- chrome ----------
@@ -676,6 +703,10 @@ function renderBookings(trip) {
     <div class="dayhead"><h2>To do</h2><button type="button" class="addbtn" data-add-todo>+ Add</button></div>
     <p class="sync" id="syncStatus" aria-live="polite" style="margin:8px 0 0"></p>
     <div id="todoBox"></div>
+
+    <div class="dayhead" style="margin-top:32px"><h2>Packing</h2><button type="button" class="addbtn" data-add-pack>+ Add</button></div>
+    <p class="muted" style="margin:6px 0 0;font-size:14px">Late November in Orlando is usually mid-70s to low 80s °F by day and 50s to low 60s at night, with a chance of a cool front or a shower.</p>
+    <div id="packBox"></div>
     ${CFG.encrypted ? `<p style="margin-top:16px"><button type="button" class="linkbtn" id="lockNow">Lock this phone</button></p>` : ""}
   </main>`;
 }
