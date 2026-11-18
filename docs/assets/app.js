@@ -705,7 +705,7 @@ function renderBookings(trip) {
     <div id="todoBox"></div>
 
     <div class="dayhead" style="margin-top:32px"><h2>Packing</h2><button type="button" class="addbtn" data-add-pack>+ Add</button></div>
-    <p class="muted" style="margin:6px 0 0;font-size:14px">Late November in Orlando is usually mid-70s to low 80s °F by day and 50s to low 60s at night, with a chance of a cool front or a shower.</p>
+    <p class="muted" style="margin:6px 0 0;font-size:14px">Late November in Orlando is usually 24–28 °C by day and 10–16 °C at night, with a chance of a cool front or a shower.</p>
     <div id="packBox"></div>
     ${CFG.encrypted ? `<p style="margin-top:16px"><button type="button" class="linkbtn" id="lockNow">Lock this phone</button></p>` : ""}
   </main>`;
