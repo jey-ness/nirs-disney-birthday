@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Build the password-protected copy of the site for GitHub Pages.
 
-    python3 scripts/build_pages.py            # asks for the password, writes docs/
+    python3 scripts/build_pages.py --save-password   # once: store the password in the macOS Keychain
+    python3 scripts/build_pages.py            # uses the Keychain password (or asks), writes docs/
     PAGES_PASSWORD=... python3 scripts/build_pages.py --out /tmp/x   # non-interactive
+
+Every build checks the password against the previous docs/data/trip.enc.json, so a typo
+can't silently lock everyone out. Use --change-password to switch to a new password on purpose.
 
 GitHub Pages serves docs/ from the main branch. Writes docs/ with the pages and assets, but the trip plan, confirmation
 numbers and Maps key exist only inside docs/data/trip.enc.json, encrypted
@@ -17,6 +21,7 @@ import argparse, base64, getpass, glob, hashlib, hmac, json, os, re, secrets, sh
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ITERATIONS = 600_000
+KEYCHAIN_SERVICE = "nirs-disney-birthday-site"
 COPY = ["index.html", "bookings/index.html", "sw.js", "manifest.webmanifest"] + \
        [os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(ROOT, "day/*/index.html"))] + \
        [os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(ROOT, "assets/*"))]
@@ -50,25 +55,73 @@ def encrypt(payload: bytes, password: str, salt: bytes = None) -> dict:
     return {"v": 1, "kdf": "PBKDF2-SHA256", "iter": ITERATIONS, "salt": b(salt), "iv": b(iv), "ct": b(ct), "mac": b(mac)}
 
 
+def keychain_password():
+    """The site password from the macOS Keychain, or None. Never printed."""
+    r = subprocess.run(["security", "find-generic-password", "-a", os.environ.get("USER", ""), "-s", KEYCHAIN_SERVICE, "-w"],
+                       capture_output=True, text=True)
+    return r.stdout.rstrip("\n") if r.returncode == 0 and r.stdout.strip() else None
+
+
+def opens_previous(password: str, prev: dict) -> bool:
+    """True if this password derives the key whose HMAC signed the previous build."""
+    keys = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), base64.b64decode(prev["salt"]), prev["iter"], dklen=64)
+    mac = hmac.new(keys[32:], base64.b64decode(prev["iv"]) + base64.b64decode(prev["ct"]), hashlib.sha256).digest()
+    return hmac.compare_digest(mac, base64.b64decode(prev["mac"]))
+
+
+def load_prev(out):
+    try:
+        return json.load(open(os.path.join(out, "data/trip.enc.json")))
+    except (OSError, ValueError):
+        return None
+
+
+def save_password(out):
+    prev = load_prev(out)
+    pw = getpass.getpass("Site password to save in the Keychain: ")
+    if prev and not opens_previous(pw, prev):
+        sys.exit("That password doesn't open the current site, so it wasn't saved. Try again.")
+    if not prev and pw != getpass.getpass("Same password again: "):
+        sys.exit("Passwords don't match.")
+    # local call only; the value is never printed. Read it back to confirm it was stored.
+    subprocess.run(["security", "add-generic-password", "-U", "-a", os.environ.get("USER", ""), "-s", KEYCHAIN_SERVICE,
+                    "-l", "Nir's Disney birthday site", "-w", pw], check=True, capture_output=True)
+    if keychain_password() != pw:
+        sys.exit("Couldn't read the password back from the Keychain.")
+    print("Saved in the macOS Keychain (" + KEYCHAIN_SERVICE + "). Builds no longer ask for it.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "docs"))
     ap.add_argument("--new-salt", action="store_true",
                     help="start fresh: every phone must re-enter the password and synced edits start empty")
+    ap.add_argument("--save-password", action="store_true", help="store the site password in the macOS Keychain and exit")
+    ap.add_argument("--change-password", action="store_true", help="allow a password that doesn't open the current site")
     args = ap.parse_args()
+    out = os.path.abspath(args.out)
+    if args.save_password:
+        return save_password(out)
 
     password = os.environ.get("PAGES_PASSWORD")
+    source = "environment"
+    if not password and not args.change_password:
+        password, source = keychain_password(), "Keychain"
     if not password:
+        source = "typed"
         password = getpass.getpass("Site password: ")
         if password != getpass.getpass("Same password again: "):
             sys.exit("Passwords don't match.")
+    prev = load_prev(out)
+    if prev and not args.new_salt and not args.change_password and prev.get("iter") == ITERATIONS and not opens_previous(password, prev):
+        sys.exit(f"Stopped: the {source} password doesn't open the current site, so phones would be locked out. "
+                 "Nothing was changed. (Use --change-password to switch passwords on purpose.)")
     if len(password) < 10:
         sys.exit("Use at least 10 characters. Anyone can download the encrypted file and guess offline, so a long passphrase matters.")
 
     trip = json.load(open(os.path.join(ROOT, "data/trip.json"), encoding="utf-8"))
     payload = json.dumps({"trip": trip, "config": read_local_config()}, ensure_ascii=False).encode("utf-8")
 
-    out = os.path.abspath(args.out)
     # Keep the previous salt: the same password then gives the same key, so phones stay
     # unlocked and live-sync edits (stored under an id derived from that key) carry over.
     salt = None
@@ -117,6 +170,7 @@ def main():
 
     print(f"Built {out}")
     print("  trip plan, confirmations and Maps key: encrypted in data/trip.enc.json")
+    print(f"  password: {source}" + (", checked against the previous build" if prev and not args.change_password and not args.new_salt else ""))
     print("  salt: " + ("kept from the previous build (phones stay unlocked, synced edits carry over)" if salt else "new"))
     print("  next: commit docs/ and push main; GitHub Pages serves main /docs")
 
