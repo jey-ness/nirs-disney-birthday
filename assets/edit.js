@@ -56,7 +56,7 @@ export function createStore(trip) {
       const id = r.id || `${d.slug}-${i}`; // permanent ids keep synced edits on the right event when the plan is reordered
       base[id] = {
         id, day: d.slug, title: r.text, start: toHM(start), end: toHM(end),
-        place: r.stop ?? null, tags: r.tags || [], note: "", base: true,
+        place: r.stop ?? null, tags: r.tags || [], note: r.note || "", base: true,
       };
     });
   }

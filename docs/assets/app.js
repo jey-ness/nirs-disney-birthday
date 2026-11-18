@@ -371,12 +371,34 @@ function exploreHtml(day) {
   </details>`;
 }
 
+// Rough walking estimate between two pins: straight line × 1.35 for paths, ~75 m/min with crowds.
+function walkBetween(a, b) {
+  const R = 6371000, rad = (x) => (x * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  const m = 2 * R * Math.asin(Math.sqrt(h)) * 1.35;
+  return { m, min: Math.max(2, Math.round(m / 75)) };
+}
+
+function walkHtml(prev, cur) {
+  if (!prev || !cur.stop) return "";
+  const w = walkBetween(prev.stop, cur.stop);
+  if (w.m < 60) return "";
+  if (w.m > 2500) return `<li class="walk"><span></span><span class="wtxt">Bus, monorail or car to the next stop</span></li>`;
+  const dist = w.m < 950 ? `${Math.round(w.m / 50) * 50} m` : `${(w.m / 1000).toFixed(1)} km`;
+  return `<li class="walk"><span></span><span class="wtxt">≈ ${w.min} min walk · ${dist}</span></li>`;
+}
+
 function listHtml(day, items, cur) {
+  let prev = null;
   return `<ol class="sched" id="sched">${items
-    .map(({ ev, stop, num }, i) => {
+    .map((item, i) => {
+      const { ev, stop, num } = item;
+      const walk = walkHtml(prev, item);
+      if (stop) prev = item;
       const cls = [num ? "stop" : "", i < cur ? "past" : "", i === cur ? "now" : ""].join(" ").trim();
       const tags = ev.tags || [];
-      return `<li class="${cls}" data-id="${esc(ev.id)}">
+      return `${walk}<li class="${cls}" data-id="${esc(ev.id)}">
         <div class="when"><span class="time">${timeHtml(toMin(ev.start))}</span>${num ? `<span class="num">${num}</span>` : ""}</div>
         <div class="body">
           ${tags.length || stop?.approx ? `<span class="tags">${tagsFor(tags)}${stop?.approx ? tag("approx", "Approx. pin") : ""}</span>` : ""}
