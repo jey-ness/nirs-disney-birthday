@@ -344,3 +344,19 @@ details.explore[open] summary svg { transform: rotate(180deg); }
 /* walking time between stops */
 .sched li.walk { display: grid; grid-template-columns: 64px 1fr; gap: 14px; padding: 0; border-bottom: 1px solid var(--ink-150); cursor: default; }
 .sched li.walk .wtxt { font-size: 12px; color: var(--ink-500); padding: 6px 0 6px 12px; border-left: 2px dotted var(--ink-300); margin: -1px 0; }
+
+/* weather */
+.wx-ic { display: inline-flex; color: var(--ink-700); flex: none; }
+.dayrow .wx { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-700); margin: 0 0 6px; }
+.dayrow .wx:empty { display: none; }
+.dayrow .wx svg { width: 16px; height: 16px; }
+.wxday { margin-top: 14px; }
+.wxday .wx-main { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--ink-950); }
+.wxday .wx-sub { font-size: 13px; margin-top: 4px; }
+.wxday .wx-sub a { color: inherit; }
+.wx-alert { display: flex; gap: 12px; margin: 20px 0 4px; padding: 14px 16px; border: 1px solid var(--ink-300); border-left: 3px solid var(--ink-950); border-radius: 12px; background: var(--ink-50, #F5F7FA); font-size: 14px; line-height: 1.45; }
+.wx-alert .wx-ic { color: var(--ink-950); margin-top: 1px; }
+.wx-alert b { display: block; font-weight: 600; margin-bottom: 4px; }
+.wx-alert ul { margin: 0 0 6px; padding-left: 18px; }
+.wx-alert li { margin: 2px 0; }
+.wx-alert .muted { font-size: 12px; }

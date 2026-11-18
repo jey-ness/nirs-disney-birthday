@@ -1,5 +1,6 @@
 import { createStore, createSync, renderCalendar, openEditor, openTodoSheet, toMin, toHM, fmtClock, fmtRange, SYNC_TEXT } from "./edit.js";
 import { EXPLORE } from "./explore.js";
+import { loadForecast, dayLine, dayDetail, packingAlerts, alertHtml, CREDIT } from "./weather.js";
 
 // Orlando trip site. No build step: plain ES module.
 // Optional /config.js (git-ignored) sets window.TRIP_CONFIG = { mapsKey, mapId, confirmations }.
@@ -198,6 +199,7 @@ function renderHome(trip) {
       <h1>Orlando,<br><span style="white-space:nowrap">November 27–29</span></h1>
       <div class="count">${countLine}</div>
     </header>
+    <div id="wxAlert"></div>
 
     <h2 class="label">Three park days</h2>
     <div class="rows">
@@ -214,6 +216,7 @@ function renderHome(trip) {
             <span>
               <span class="park">${esc(d.park)}</span>
               ${d.hours ? `<span class="hours">Open ${esc(d.hours)}</span>` : ""}
+              <span class="wx" data-wx="${esc(d.date)}"></span>
               <span class="sum">${d.birthdayTag ? `<em>${esc(d.birthdayTag)}</em> ` : ""}${esc(d.summary)}</span>
               <span class="tags">${tags}</span>
             </span>
@@ -345,6 +348,7 @@ function renderDay(trip, day) {
       <h1>${esc(day.park)}</h1>
       ${day.birthdayLine ? `<p class="bday">${esc(day.birthdayLine)}</p>` : ""}
       <p class="lede">${esc(day.why)}</p>
+      <div class="wxday" data-wx-day="${esc(day.date)}"></div>
     </header>
 
     <div class="stick" id="stick">
@@ -706,6 +710,7 @@ function renderBookings(trip) {
 
     <div class="dayhead" style="margin-top:32px"><h2>Packing</h2><button type="button" class="addbtn" data-add-pack>+ Add</button></div>
     <p class="muted" style="margin:6px 0 0;font-size:14px">Late November in Orlando is usually 24–28 °C by day and 10–16 °C at night, with a chance of a cool front or a shower.</p>
+    <div id="wxAlertPack" style="margin-top:12px"></div>
     <div id="packBox"></div>
     ${CFG.encrypted ? `<p style="margin-top:16px"><button type="button" class="linkbtn" id="lockNow">Lock this phone</button></p>` : ""}
   </main>`;
@@ -794,6 +799,21 @@ async function loadTrip() {
   return new Promise((resolve) => renderLock(blob, resolve));
 }
 
+// ---------- weather ----------
+// Live forecast (assets/weather.js). Re-checked when the page comes back into view; the module
+// only goes to the network when its saved copy is older than 3 hours.
+async function paintWeather(trip) {
+  const fc = await loadForecast(trip);
+  document.querySelectorAll("[data-wx]").forEach((el) => (el.innerHTML = dayLine(fc.days?.[el.dataset.wx])));
+  document.querySelectorAll("[data-wx-day]").forEach((el) => {
+    const d = fc.days?.[el.dataset.wxDay];
+    el.innerHTML = d ? `${dayDetail(d)}<div class="wx-sub muted">Forecast${fc.stale ? " (offline, last saved)" : ""} · ${CREDIT}</div>`
+      : fc.reason === "range" ? `<div class="wx-sub muted">The forecast shows up about two weeks before.</div>` : "";
+  });
+  const html = fc.days ? alertHtml(packingAlerts(fc, trip), fc) : "";
+  ["wxAlert", "wxAlertPack"].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = html; });
+}
+
 // ---------- boot ----------
 async function boot() {
   let trip;
@@ -815,6 +835,8 @@ async function boot() {
     app.innerHTML = renderDay(trip, day);
     wireDay(day);
   }
+  paintWeather(trip);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") paintWeather(trip); });
   app.insertAdjacentHTML("beforeend", tabbar(trip));
 }
 boot();
