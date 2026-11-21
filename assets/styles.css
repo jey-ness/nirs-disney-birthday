@@ -86,7 +86,8 @@ h2.label { font-family: var(--sans); font-size: 12px; margin: 36px 0 4px; }
 .openrow b { display: block; font-weight: 600; }
 
 /* Now / Next */
-.stick { position: sticky; top: 0; z-index: 10; background: var(--bg); margin: 0 -24px; padding: 0 24px 12px; }
+.stick { position: sticky; top: 0; z-index: 10; background: var(--bg); margin: 0 -24px; padding: 12px 24px; }
+.stick .mapbox { margin-top: 0; }
 .nownext { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--ink-950); border-bottom: 1px solid var(--ink-150); }
 .nownext.single { grid-template-columns: 1fr; }
 .nownext > div { padding: 12px 12px 12px 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -95,7 +96,7 @@ h2.label { font-family: var(--sans); font-size: 12px; margin: 36px 0 4px; }
 .nownext .val { font-size: 15px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Map */
-.mapbox { position: relative; height: 32vh; min-height: 220px; max-height: 340px; margin-top: 12px; border-radius: 18px; overflow: hidden; background: var(--ink-50); }
+.mapbox { position: relative; height: 25.6vh; min-height: 176px; max-height: 272px; margin-top: 12px; border-radius: 18px; overflow: hidden; background: var(--ink-50); }
 #map, .mapbox svg { width: 100%; height: 100%; display: block; }
 .mapnote { font-size: 13px; color: var(--ink-500); margin: 10px 0 0; }
 /* Map pins, as in the design: small numbered dots ringed in the page colour.

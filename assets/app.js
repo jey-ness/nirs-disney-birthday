@@ -373,8 +373,8 @@ function renderDay(trip, day) {
       <div class="wxday" data-wx-day="${esc(day.date)}"></div>
     </header>
 
+    <div class="nownext" id="nownext"></div>
     <div class="stick" id="stick">
-      <div class="nownext" id="nownext"></div>
       <div class="mapbox"><div id="map" role="region" aria-label="Map of the day's stops"></div></div>
     </div>
     <p class="mapnote" id="mapnote"></p>
