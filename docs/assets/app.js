@@ -369,7 +369,7 @@ function renderDay(trip, day) {
   <main>
     <header class="head">
       <div class="kicker">${esc(longDate(day.date))}${day.hours ? ` · Open ${esc(day.hours)}` : ""}</div>
-      <h1 class="dayh1"><span>${esc(day.park)}</span>${(() => { const st = STICKERS.find((x) => x.id === DAY_STICKER[day.slug]); return st ? `<img class="headnir" src="${st.src}" alt="${esc(st.label)} Nir">` : ""; })()}</h1>
+      <h1 class="dayh1">${(() => { const st = STICKERS.find((x) => x.id === DAY_STICKER[day.slug]); return st ? `<img class="headnir" src="${st.src}" alt="${esc(st.label)} Nir">` : ""; })()}<span>${esc(day.park)}</span></h1>
       ${day.birthdayLine ? `<p class="bday">${esc(day.birthdayLine)}</p>` : ""}
       <p class="lede">${esc(day.why)}</p>
       <div class="wxday" data-wx-day="${esc(day.date)}"></div>
