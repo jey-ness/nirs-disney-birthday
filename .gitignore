@@ -9,6 +9,9 @@
 /config.js
 /data/private.json
 
+# Nir's stickers (pictures of a real person): only ship encrypted
+/data/stickers.json
+
 # Brief contains booking confirmation numbers
 /orlando-trip-site-brief.md
 

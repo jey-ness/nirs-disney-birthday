@@ -1,6 +1,7 @@
 import { createStore, createSync, renderCalendar, openEditor, openTodoSheet, toMin, toHM, fmtClock, fmtRange, SYNC_TEXT } from "./edit.js";
 import { EXPLORE } from "./explore.js";
 import { loadForecast, dayLine, dayDetail, packingAlerts, alertHtml, CREDIT } from "./weather.js";
+import { initStamps, DAY_STICKER } from "./stamp.js";
 
 // Orlando trip site. No build step: plain ES module.
 // Optional /config.js (git-ignored) sets window.TRIP_CONFIG = { mapsKey, mapId, confirmations }.
@@ -323,6 +324,7 @@ function wireHome() {
 
 // ---------- day ----------
 let store = null, sync = null; // set in boot on day pages
+let STICKERS = []; // Nir stickers, from the decrypted bundle
 const VIEW_STORE = "orlando-trip-view-v1";
 const getView = () => { try { return localStorage.getItem(VIEW_STORE) === "cal" ? "cal" : "list"; } catch { return "list"; } };
 const setView = (v) => { try { localStorage.setItem(VIEW_STORE, v); } catch { /* ignore */ } };
@@ -366,6 +368,7 @@ function renderDay(trip, day) {
   return `
   <main>
     <header class="head">
+      ${(() => { const st = STICKERS.find((x) => x.id === DAY_STICKER[day.slug]); return st ? `<img class="headnir" src="${st.src}" alt="${esc(st.label)} Nir">` : ""; })()}
       <div class="kicker">${esc(longDate(day.date))}${day.hours ? ` · Open ${esc(day.hours)}` : ""}</div>
       <h1>${esc(day.park)}</h1>
       ${day.birthdayLine ? `<p class="bday">${esc(day.birthdayLine)}</p>` : ""}
@@ -925,7 +928,10 @@ let KEY_BITS = null; // derived from the password; also keys live sync
 async function loadTrip() {
   if (!CFG.encrypted) {
     const plain = await fetch(BASE + "data/trip.json").catch(() => null);
-    if (plain && plain.ok) return { trip: await plain.json() };
+    if (plain && plain.ok) {
+      const st = await fetch(BASE + "data/stickers.json").catch(() => null); // local preview only
+      return { trip: await plain.json(), stickers: st && st.ok ? await st.json() : [] };
+    }
     CFG.encrypted = true; // no readable plan here: this is the encrypted build
   }
   const blob = await (await fetch(BASE + "data/trip.enc.json")).json();
@@ -958,6 +964,7 @@ async function boot() {
     const payload = await loadTrip();
     trip = payload.trip;
     Object.assign(CFG, payload.config || {});
+    STICKERS = payload.stickers || [];
   } catch {
     app.innerHTML = `<main><header class="head"><h1>Offline</h1><p class="lede">Couldn't load the trip plan. Open the site once with signal so it's saved for offline use.</p></header></main>`;
     return;
@@ -979,6 +986,7 @@ async function boot() {
   paintWeather(trip);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") paintWeather(trip); });
   app.insertAdjacentHTML("beforeend", tabbar(trip));
+  initStamps(STICKERS, page === "day" ? `day/${daySlug}` : page);
 }
 boot();
 

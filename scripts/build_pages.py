@@ -120,7 +120,9 @@ def main():
         sys.exit("Use at least 10 characters. Anyone can download the encrypted file and guess offline, so a long passphrase matters.")
 
     trip = json.load(open(os.path.join(ROOT, "data/trip.json"), encoding="utf-8"))
-    payload = json.dumps({"trip": trip, "config": read_local_config()}, ensure_ascii=False).encode("utf-8")
+    stickers_path = os.path.join(ROOT, "data/stickers.json")  # git-ignored; pictures of Nir only ship encrypted
+    stickers = json.load(open(stickers_path)) if os.path.exists(stickers_path) else []
+    payload = json.dumps({"trip": trip, "config": read_local_config(), "stickers": stickers}, ensure_ascii=False).encode("utf-8")
 
     # Keep the previous salt: the same password then gives the same key, so phones stay
     # unlocked and live-sync edits (stored under an id derived from that key) carry over.
@@ -156,6 +158,7 @@ def main():
     secrets_to_check = [v for v in [cfg.get("mapsKey"), cfg.get("supabaseUrl"), cfg.get("supabaseAnonKey")] + list(cfg.get("confirmations", {}).values()) if v]
     secrets_to_check += [trip["travelers"]] + [d["summary"] for d in trip["days"]] + \
         [s["name"] for d in trip["days"] for s in d["stops"]] + [b["when"] for b in trip["booked"]]
+    secrets_to_check += [st["src"][-200:] for st in stickers]  # sticker pictures only ever ship encrypted
     for dirpath, _, files in os.walk(out):
         if ".git" in dirpath.split(os.sep):
             continue
