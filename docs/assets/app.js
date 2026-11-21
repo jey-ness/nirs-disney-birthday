@@ -478,7 +478,7 @@ function listHtml(day, items, cur) {
       return `${walk}<li class="${cls}" data-id="${esc(ev.id)}">
         <div class="when"><span class="time">${timeHtml(toMin(ev.start))}</span>${num ? `<span class="num">${num}</span>` : ""}</div>
         <div class="body">
-          ${ev.kind || tags.length || stop?.approx ? `<span class="tags">${kindHtml(ev.kind)}${tagsFor(tags)}${stop?.approx ? tag("approx", "Approx. pin") : ""}</span>` : ""}
+          ${ev.kind || tags.length || stop?.approx ? `<span class="tags">${kindHtml(ev.kind)}${tags.map((t) => tag(t, BADGE[t] || t)).join("")}${stop?.approx ? tag("approx", "Approx. pin") : ""}</span>` : ""}
           <div class="what">${esc(ev.title)}</div>
           <div class="where">${esc(fmtRange(toMin(ev.start), toMin(ev.end)))}${stop ? " · " + esc(stop.name) : ""}</div>
           ${ev.note ? `<div class="evnote">${esc(ev.note)}</div>` : ""}
