@@ -212,8 +212,8 @@ function renderHome(trip) {
   const { date } = nyNow();
   const toGo = daysBetween(date, trip.days[0].date);
   const countLine =
-    toGo > 0 ? `<b>${toGo}</b><span>day${toGo === 1 ? "" : "s"} to go · ${esc(trip.crowdNote.replace(/^Thanksgiving weekend: /, "Thanksgiving weekend, "))}</span>`
-    : toGo > -3 ? `<b>Today</b><span>The trip is on. ${esc(trip.crowdNote)}</span>`
+    toGo > 0 ? `<b>${toGo}</b> <span>day${toGo === 1 ? "" : "s"} to go · ${esc(trip.crowdNote.replace(/^Thanksgiving weekend: /, "Thanksgiving weekend, "))}</span>`
+    : toGo > -3 ? `<b>Today.</b> <span>The trip is on. ${esc(trip.crowdNote)}</span>`
     : `<span>Trip complete.</span>`;
   return `
   <main>
