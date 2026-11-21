@@ -22,7 +22,7 @@ import argparse, base64, getpass, glob, hashlib, hmac, json, os, re, secrets, sh
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ITERATIONS = 600_000
 KEYCHAIN_SERVICE = "nirs-disney-birthday-site"
-COPY = ["index.html", "bookings/index.html", "sw.js", "manifest.webmanifest"] + \
+COPY = ["index.html", "bookings/index.html", "menu/index.html", "sw.js", "manifest.webmanifest"] + \
        [os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(ROOT, "day/*/index.html"))] + \
        [os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(ROOT, "assets/*"))]
 
