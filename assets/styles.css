@@ -500,7 +500,7 @@ details.menu-more[open] > summary .chev { transform: rotate(90deg); }
 .head { position: relative; }
 .headrow { display: flex; align-items: center; gap: 12px; }
 .headtxt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.headnir { flex: none; width: 72px; height: 72px; object-fit: contain; filter: drop-shadow(0 2px 6px rgba(var(--shade),.18)); }
+.headnir { order: 2; flex: none; width: 72px; height: 72px; object-fit: contain; filter: drop-shadow(0 2px 6px rgba(var(--shade),.18)); }
 .dayh1 { font-size: clamp(28px, 7.8vw, 48px); }
 
 /* ---------- stamp tool (assets/stamp.js) ---------- */
