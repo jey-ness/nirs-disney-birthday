@@ -1001,7 +1001,7 @@ async function boot() {
   paintWeather(trip);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") paintWeather(trip); });
   app.insertAdjacentHTML("beforeend", tabbar(trip));
-  initStamps(STICKERS, page === "day" ? `day/${daySlug}` : page);
+  initStamps(STICKERS, page === "day" ? `day/${daySlug}` : page, store);
 }
 boot();
 

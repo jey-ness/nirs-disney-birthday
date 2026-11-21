@@ -64,6 +64,7 @@ export function createStore(trip) {
   let state = read();
   state.events = state.events || {};
   state.todos = state.todos || {};
+  state.stamps = state.stamps || {}; // Nir stamps: {id, page, s, x, y, r} plus one "clear:<page>" marker per cleared page
 
   // to-dos: base items from data/trip.json, plus per-item overrides and additions in state.todos
   // two lists share this store: "todo" (trip.toBook) and "packing" (trip.packing)
@@ -106,6 +107,27 @@ export function createStore(trip) {
     emit("local");
   }
 
+  // ---- stamps (assets/stamp.js) ----
+  const STAMP_CAP = 120; // per page; the oldest goes when a page is full, so the synced row stays small
+  const clearedAt = (page) => state.stamps["clear:" + page]?.updatedAt || 0;
+  const liveStamp = (o) => o && o.page && !o.clear && !o.gone && o.updatedAt > clearedAt(o.page);
+  function pruneStamps() { // drop stamps (and tombstones) that a Clear already covers
+    for (const [id, o] of Object.entries(state.stamps)) if (!o.clear && o.updatedAt <= clearedAt(o.page)) delete state.stamps[id];
+  }
+  function stampsFor(page) { return Object.values(state.stamps).filter((o) => o.page === page && liveStamp(o)).sort((a, b) => a.updatedAt - b.updatedAt); }
+  function addStamp({ page, s: sticker, x, y, r }) {
+    const live = stampsFor(page);
+    if (live.length >= STAMP_CAP) state.stamps[live[0].id] = { id: live[0].id, page, gone: true, updatedAt: Date.now() };
+    const id = "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    touch(id, { page, s: sticker, x, y, r }, "stamps");
+    return state.stamps[id];
+  }
+  function clearStamps(page) {
+    touch("clear:" + page, { page, clear: true }, "stamps");
+    pruneStamps();
+    write();
+  }
+
   function todoGroups(list = "todo") {
     const items = [];
     for (const b of Object.values(baseTodos)) {
@@ -132,7 +154,8 @@ export function createStore(trip) {
     upsert: (ev) => touch(ev.id, { day: ev.day, ...pick(ev) }),
     remove: (ev) => touch(ev.id, { day: ev.day, deleted: true }),
     restore: (ev) => touch(ev.id, { day: ev.day, reset: true }),
-    snapshot: () => ({ events: state.events, todos: state.todos }),
+    snapshot: () => ({ events: state.events, todos: state.todos, stamps: state.stamps }),
+    stampsFor, addStamp, clearStamps,
     todoGroups,
     allGroups: (list = "todo") => [...new Set([...baseGroups[list], ...Object.values(state.todos).filter((o) => listOf(o) === list).map((o) => o.group).filter(Boolean)])],
     setDone: (id, done) => touch(id, { ...(state.todos[id] || {}), done }, "todos"),
@@ -143,11 +166,15 @@ export function createStore(trip) {
     // last write wins, per event
     mergeRemote(remote) {
       let changed = false, localNewer = false;
-      for (const kind of ["events", "todos"]) {
+      for (const kind of ["events", "todos", "stamps"]) {
         const r = remote?.[kind] || {}, mine = state[kind];
-        for (const [id, e] of Object.entries(r)) {
+        // stamps: take the Clear markers first, so stamps a Clear covers aren't brought back
+        const entries = Object.entries(r).sort(([a], [b]) => (b.startsWith("clear:") ? 1 : 0) - (a.startsWith("clear:") ? 1 : 0));
+        for (const [id, e] of entries) {
+          if (kind === "stamps" && !e.clear && e.updatedAt <= clearedAt(e.page)) continue;
           if (!mine[id] || e.updatedAt > mine[id].updatedAt) { mine[id] = e; changed = true; }
         }
+        if (kind === "stamps") pruneStamps();
         for (const [id, e] of Object.entries(mine)) if (!r[id] || e.updatedAt > r[id].updatedAt) localNewer = true;
       }
       if (changed) { write(); emit("remote"); }
@@ -196,7 +223,7 @@ export function createSync(store, { bits, supabase }) {
         set(store.isDirty() ? "saving" : "checking");
         const { edits, version } = await fetchRemote();
         const snap = store.snapshot();
-        const { localNewer } = edits ? store.mergeRemote(edits) : { localNewer: Object.keys(snap.events).length + Object.keys(snap.todos).length > 0 };
+        const { localNewer } = edits ? store.mergeRemote(edits) : { localNewer: Object.keys(snap.events).length + Object.keys(snap.todos).length + Object.keys(snap.stamps).length > 0 };
         if (!localNewer) { store.markClean(); set("synced"); break; }
         const blob = await encryptWithBits(store.snapshot(), bits);
         const v = await rpc("trip_put", { p_id: await id(), p_data: JSON.stringify(blob), p_version: version });
