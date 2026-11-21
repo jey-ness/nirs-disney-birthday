@@ -368,8 +368,13 @@ function renderDay(trip, day) {
   return `
   <main>
     <header class="head">
-      <div class="kicker">${esc(longDate(day.date))}${day.hours ? ` · Open ${esc(day.hours)}` : ""}</div>
-      <h1 class="dayh1">${(() => { const st = STICKERS.find((x) => x.id === DAY_STICKER[day.slug]); return st ? `<img class="headnir" src="${st.src}" alt="${esc(st.label)} Nir">` : ""; })()}<span>${esc(day.park)}</span></h1>
+      <div class="headrow">
+        ${(() => { const st = STICKERS.find((x) => x.id === DAY_STICKER[day.slug]); return st ? `<img class="headnir" src="${st.src}" alt="${esc(st.label)} Nir">` : ""; })()}
+        <div class="headtxt">
+          <div class="kicker">${esc(longDate(day.date))}${day.hours ? ` · Open ${esc(day.hours)}` : ""}</div>
+          <h1 class="dayh1">${esc(day.park)}</h1>
+        </div>
+      </div>
       ${day.birthdayLine ? `<p class="bday">${esc(day.birthdayLine)}</p>` : ""}
       <p class="lede">${esc(day.why)}</p>
       <div class="wxday" data-wx-day="${esc(day.date)}"></div>
@@ -956,6 +961,16 @@ async function paintWeather(trip) {
   ["wxAlert", "wxAlertPack", "wxAlertMenu"].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = html; });
 }
 
+// The header Nir is exactly as tall as the date line + park title beside it.
+function fitHeadNir() {
+  const img = document.querySelector(".headnir"), txt = document.querySelector(".headtxt");
+  if (!img || !txt) return;
+  const fit = () => { const h = Math.round(txt.getBoundingClientRect().height); img.style.width = img.style.height = h + "px"; };
+  fit();
+  new ResizeObserver(fit).observe(txt);
+  document.fonts?.ready.then(fit);
+}
+
 // ---------- boot ----------
 async function boot() {
   let trip;
@@ -978,6 +993,7 @@ async function boot() {
     document.title = `${day.park} · ${day.label}`;
     app.innerHTML = renderDay(trip, day);
     wireDay(day);
+    fitHeadNir();
   }
   app.insertAdjacentHTML("afterbegin", STARS);
   // the page is built after load, so jump to #todo / #packing ourselves (links from the Menu)
