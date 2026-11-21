@@ -1,4 +1,4 @@
-import { createStore, createSync, renderCalendar, openEditor, openTodoSheet, toMin, toHM, fmtClock, fmtRange, SYNC_TEXT } from "./edit.js";
+import { createStore, createSync, renderCalendar, openEditor, openTodoSheet, toMin, toHM, fmtClock, fmtRange, SYNC_TEXT, KINDS } from "./edit.js";
 import { EXPLORE } from "./explore.js";
 import { loadForecast, dayLine, dayDetail, packingAlerts, alertHtml, CREDIT } from "./weather.js";
 import { initStamps, DAY_STICKER } from "./stamp.js";
@@ -449,6 +449,23 @@ function walkHtml(prev, cur) {
   return `<li class="walk"><span></span><span class="wtxt">≈ ${w.min} min walk · ${dist}</span></li>`;
 }
 
+// Small line icons for each item type (KINDS in edit.js); neutral colour, so tags keep the colour.
+const KI = (d) => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const KIND_ICON = {
+  ride: KI(`<path d="M3 17c3-9 6-9 9 0s6 9 9 0"/><path d="M3 20h18"/>`),
+  show: KI(`<path d="M4 5h16v10H4z"/><path d="M9 19h6M12 15v4"/>`),
+  parade: KI(`<path d="M4 21V4"/><path d="M4 4h12l-2 4 2 4H4"/>`),
+  fireworks: KI(`<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>`),
+  food: KI(`<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10"/><path d="M17 21V3c-2 1-3 4-3 7h3"/>`),
+  drinks: KI(`<path d="M6 3h12l-6 9z"/><path d="M12 12v8M8 21h8"/>`),
+  experience: KI(`<path d="M12 3l2.5 6 6.5.5-5 4.3 1.5 6.2L12 16.7 6.5 20l1.5-6.2-5-4.3 6.5-.5z"/>`),
+  explore: KI(`<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>`),
+  shopping: KI(`<path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>`),
+  travel: KI(`<path d="M5 17h14V9a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4z"/><path d="M5 12h14M8 21l1-4M16 21l-1-4"/>`),
+};
+const KIND_LABEL = Object.fromEntries(KINDS);
+const kindHtml = (k) => (KIND_LABEL[k] ? `<span class="kind">${KIND_ICON[k]}${esc(KIND_LABEL[k])}</span>` : "");
+
 function listHtml(day, items, cur) {
   let prev = null;
   return `<ol class="sched" id="sched">${items
@@ -461,7 +478,7 @@ function listHtml(day, items, cur) {
       return `${walk}<li class="${cls}" data-id="${esc(ev.id)}">
         <div class="when"><span class="time">${timeHtml(toMin(ev.start))}</span>${num ? `<span class="num">${num}</span>` : ""}</div>
         <div class="body">
-          ${tags.length || stop?.approx ? `<span class="tags">${tagsFor(tags)}${stop?.approx ? tag("approx", "Approx. pin") : ""}</span>` : ""}
+          ${ev.kind || tags.length || stop?.approx ? `<span class="tags">${kindHtml(ev.kind)}${tagsFor(tags)}${stop?.approx ? tag("approx", "Approx. pin") : ""}</span>` : ""}
           <div class="what">${esc(ev.title)}</div>
           <div class="where">${esc(fmtRange(toMin(ev.start), toMin(ev.end)))}${stop ? " · " + esc(stop.name) : ""}</div>
           ${ev.note ? `<div class="evnote">${esc(ev.note)}</div>` : ""}
@@ -806,7 +823,7 @@ function wireMenu(trip) {
     document.getElementById("mTodoBar").style.width = (todo.length ? Math.round((td / todo.length) * 100) : 0) + "%";
     document.getElementById("mPack").textContent = `${pk} of ${pack.length} packed`;
     document.getElementById("mHours").innerHTML = trip.days.map((d) => {
-      const shows = store.eventsFor(d.slug).filter((e) => (e.tags || []).some((t) => NIGHT_TAGS.includes(t)));
+      const shows = store.eventsFor(d.slug).filter((e) => e.kind === "fireworks" || (e.tags || []).some((t) => NIGHT_TAGS.includes(t)));
       return `<div class="line"><b>${esc(new Date(d.date + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric", timeZone: "UTC" }))} · ${esc(d.park)}</b>
         <span>Open ${esc(d.hours || "")}</span>
         ${shows.map((e) => `<span class="muted">${esc(fmtClock(toMin(e.start)))} · ${esc(e.title)}</span>`).join("")}</div>`;

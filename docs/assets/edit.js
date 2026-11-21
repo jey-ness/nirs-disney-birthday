@@ -18,7 +18,12 @@ const snap = (min, step) => Math.round(min / step) * step;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const uid = () => "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const FIELDS = ["title", "start", "end", "place", "tags", "note"];
+const FIELDS = ["title", "start", "end", "place", "tags", "note", "kind"];
+// What each item is. The icon + word shows on every schedule row.
+export const KINDS = [
+  ["ride", "Ride"], ["show", "Show"], ["parade", "Parade"], ["fireworks", "Fireworks"], ["food", "Food"], ["drinks", "Drinks"],
+  ["experience", "Experience"], ["explore", "Explore"], ["shopping", "Shopping"], ["travel", "Getting there"],
+];
 
 // ---------- crypto (same scheme as the encrypted trip file) ----------
 const b64d = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
@@ -56,7 +61,7 @@ export function createStore(trip) {
       const id = r.id || `${d.slug}-${i}`; // permanent ids keep synced edits on the right event when the plan is reordered
       base[id] = {
         id, day: d.slug, title: r.text, start: toHM(start), end: toHM(end),
-        place: r.stop ?? null, tags: r.tags || [], note: r.note || "", base: true,
+        place: r.stop ?? null, tags: r.tags || [], note: r.note || "", kind: r.kind || "", base: true,
       };
     });
   }
@@ -433,6 +438,9 @@ export function openEditor({ ev, isNew, isBase, places, knownTags = [], getPlace
         <p class="pl-hint" id="plHint"></p>
       </div>
 
+      <label class="fld"><span class="label">Type</span>
+        <select name="kind"><option value="">—</option>${KINDS.map(([v, l]) => `<option value="${v}" ${ev.kind === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+
       <fieldset class="fld chips" id="tagChips"><legend class="label">Tags</legend>
         ${BUILTIN_TAGS.map(([v, l]) => chip(v, l, v, evTags.includes(v))).join("")}
         ${custom.map((t) => chip(t, t, "custom", evTags.includes(t))).join("")}
@@ -564,6 +572,7 @@ export function openEditor({ ev, isNew, isBase, places, knownTags = [], getPlace
       ...ev, title, start, end: endT,
       place: chosen,
       tags: [...new Set(f.getAll("tags").map(cleanTag).filter(Boolean))].slice(0, 8),
+      kind: KINDS.some(([v]) => v === f.get("kind")) ? f.get("kind") : "",
       note: String(f.get("note") || "").trim(),
     });
     close();

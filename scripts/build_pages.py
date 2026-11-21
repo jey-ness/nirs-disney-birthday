@@ -159,6 +159,9 @@ def main():
     secrets_to_check += [trip["travelers"]] + [d["summary"] for d in trip["days"]] + \
         [s["name"] for d in trip["days"] for s in d["stops"]] + [b["when"] for b in trip["booked"]]
     secrets_to_check += [st["src"][-200:] for st in stickers]  # sticker pictures only ever ship encrypted
+    # famous attraction names already in the public ideas list (assets/explore.js) aren't plan data
+    public_names = open(os.path.join(ROOT, "assets/explore.js"), encoding="utf-8").read()
+    secrets_to_check = [v for v in secrets_to_check if v not in public_names]
     for dirpath, _, files in os.walk(out):
         if ".git" in dirpath.split(os.sep):
             continue
