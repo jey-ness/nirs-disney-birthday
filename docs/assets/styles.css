@@ -71,6 +71,11 @@ h2.label { font-family: var(--sans); font-size: 12px; margin: 36px 0 4px; }
 .tag.multi  { background: var(--multi-bg);  color: var(--multi); }
 .tag.single { background: var(--single-bg); color: var(--single); }
 .tag.approx, .tag.undecided { background: var(--amber-bg); color: var(--amber); }
+.tag.lorcana { background: var(--amber-bg); color: var(--amber); }
+.lorcana-note { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 12px 14px; margin: 0 0 8px; border-radius: 14px; background: var(--ink-50); box-shadow: inset 0 0 0 1px var(--ink-150); }
+.lorcana-note .tags { grid-column: 1 / -1; }
+.lorcana-note div { display: flex; flex-direction: column; gap: 2px; font-size: 15px; min-width: 0; }
+.lorcana-note .muted { font-size: 13px; }
 .tag.standby { background: var(--muted-bg); color: var(--muted); }
 
 /* Lists of rows */

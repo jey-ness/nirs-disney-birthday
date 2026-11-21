@@ -1,5 +1,5 @@
 import { createStore, createSync, renderCalendar, openEditor, openTodoSheet, toMin, toHM, fmtClock, fmtRange, SYNC_TEXT, KINDS } from "./edit.js";
-import { EXPLORE } from "./explore.js";
+import { EXPLORE, SHOPS, LORCANA_SURE } from "./explore.js";
 import { loadForecast, dayLine, dayDetail, packingAlerts, alertHtml, CREDIT } from "./weather.js";
 import { initStamps, DAY_STICKER } from "./stamp.js";
 
@@ -18,7 +18,7 @@ const esc = (s) =>
 
 const BADGE = { solo: "Jey solo", booked: "Booked", multi: "Multi Pass", single: "Single Pass", standby: "Standby" };
 // Known tag styles get their color; anything else (custom tags) is a neutral pill. Never put user text in class.
-const TAG_CLASSES = new Set(["solo", "booked", "multi", "single", "standby", "approx", "undecided"]);
+const TAG_CLASSES = new Set(["solo", "booked", "multi", "single", "standby", "approx", "undecided", "lorcana"]);
 const tag = (cls, text) => `<span class="tag ${TAG_CLASSES.has(cls) ? cls : "custom"}">${esc(text)}</span>`;
 const tagsFor = (tags = []) => (tags.length ? `<span class="tags">${tags.map((t) => tag(t, BADGE[t] || t)).join("")}</span>` : "");
 
@@ -404,8 +404,35 @@ function renderDay(trip, day) {
       <button type="button" class="addbtn" id="addEv">+ Add</button>
     </div>
     <div id="dayBody"></div>
+    ${shopsHtml(day)}
     ${exploreHtml(day)}
   </main>`;
+}
+
+function shopsHtml(day) {
+  const list = SHOPS[day.slug] || [];
+  if (!list.length) return "";
+  const n = list.filter((x) => x.lorcana).length;
+  const mapLink = (name, where) => `<a class="dir" href="${esc(mapsUrl({ name, query: `${name}, ${where}, Walt Disney World` }, where))}" target="_blank" rel="noopener" aria-label="${esc(name)} in Google Maps">Map ${ICON.arrow}</a>`;
+  return `<details class="explore" id="shops">
+    <summary><span><b class="serif">Shops &amp; Lorcana</b><span class="muted">${list.length} stores worth a stop${n ? ` · ${n} to ask for Lorcana` : ""}</span></span>${ICON.chevronDown}</summary>
+    <div class="lorcana-note">
+      <span class="tags">${tag("lorcana", "Lorcana for sure")}</span>
+      <div><b>${esc(LORCANA_SURE.name)}, ${esc(LORCANA_SURE.where)}</b><span class="muted">${esc(LORCANA_SURE.note)}</span></div>
+      ${mapLink(LORCANA_SURE.name, LORCANA_SURE.where)}
+    </div>
+    <ul class="xlist">${list
+      .map((x) => `<li>
+        <div class="xmain">
+          <span class="xname">${esc(x.name)}</span>
+          <span class="muted">${esc(x.area)} · ${esc(x.note)}</span>
+          ${x.lorcana ? `<span class="tags">${tag("lorcana", "Ask for Lorcana")}</span>` : ""}
+        </div>
+        <div class="xact">${mapLink(x.name, day.park)}</div>
+      </li>`)
+      .join("")}</ul>
+    <p class="muted" style="margin:4px 0 16px;font-size:13px">Lorcana stock in the parks changes and isn't listed anywhere, so ask at the big stores. Shops can move or close; the Disney app has the current list.</p>
+  </details>`;
 }
 
 function exploreHtml(day) {
