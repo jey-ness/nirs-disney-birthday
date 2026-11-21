@@ -519,7 +519,10 @@ function wireDay(day) {
     } else {
       body.innerHTML = listHtml(day, items, n.cur);
     }
-    const pins = items.filter((it) => it.num);
+    const live = n.cur >= 0 && n.cur < items.length; // only today: dim what's done, ring what's on now
+    const pins = items
+      .map((it, i) => ({ ...it, state: !live ? "" : i < n.cur ? "past" : i === n.cur ? "now" : "" }))
+      .filter((it) => it.num);
     const approx = pins.filter((p) => p.stop.approx).map((p) => p.num);
     const approxTxt =
       approx.length === 1 ? ` Pin ${approx[0]} is approximate.`
@@ -596,7 +599,7 @@ function setupSvg() {
       const path = pins.map((p, i) => `${i ? "L" : "M"}${pt(p.stop).map((v) => v.toFixed(1)).join(",")}`).join(" ");
       box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">
         <path d="${path}" fill="none" style="stroke:var(--ink-500)" stroke-width="1.5" stroke-dasharray="4 4" stroke-linejoin="round"/>
-        ${pins.map((p) => { const [x, y] = pt(p.stop); return `<g class="svgpin" data-id="${esc(p.ev.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle r="13"/><text>${p.num}</text></g>`; }).join("")}
+        ${pins.map((p) => { const [x, y] = pt(p.stop); return `<g class="svgpin${p.state ? " " + p.state : ""}" data-id="${esc(p.ev.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">${p.state === "now" ? `<circle class="halo" r="20"/>` : ""}<circle r="13"/><text>${p.num}</text></g>`; }).join("")}
       </svg>`;
       box.querySelector("svg").addEventListener("click", (e) => {
         const g = e.target.closest(".svgpin");
@@ -670,7 +673,8 @@ async function setupGoogle(day) {
     colorScheme: effectiveTheme() === "light" ? "LIGHT" : "DARK", // dark map at night so it doesn't glare
   });
   const lineColor = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#0E1726";
-  const line = new Polyline({ map, path: [], strokeColor: lineColor, strokeOpacity: 0.7, strokeWeight: 3 });
+  // Dashed route, like the design's walking line, so it reads as "the way between stops".
+  const line = new Polyline({ map, path: [], strokeOpacity: 0, icons: [{ icon: { path: "M 0,-1 0,1", strokeColor: lineColor, strokeOpacity: 0.85, strokeWeight: 3, scale: 2.5 }, offset: "0", repeat: "12px" }] });
   let markers = {}, fitted = "";
   mapApi = {
     draw(pins) {
@@ -680,9 +684,9 @@ async function setupGoogle(day) {
       const bounds = new LatLngBounds();
       pins.forEach((p) => {
         const pin = document.createElement("div");
-        pin.className = "gpin";
-        pin.textContent = p.num;
-        const m = new AdvancedMarkerElement({ map, position: { lat: p.stop.lat, lng: p.stop.lng }, content: pin, title: `${p.num}. ${p.stop.name}`, gmpClickable: true, zIndex: p.num });
+        pin.className = "gpin" + (p.state ? " " + p.state : "");
+        pin.innerHTML = `<span>${p.num}</span>`;
+        const m = new AdvancedMarkerElement({ map, position: { lat: p.stop.lat, lng: p.stop.lng }, content: pin, title: `${p.num}. ${p.stop.name}`, gmpClickable: true, zIndex: p.state === "now" ? 500 : p.state === "past" ? p.num : 100 + p.num });
         pin.addEventListener("click", (e) => { e.stopPropagation(); select(p.ev.id, "map"); });
         markers[p.ev.id] = { m, pin, num: p.num };
         bounds.extend({ lat: p.stop.lat, lng: p.stop.lng });
@@ -694,7 +698,7 @@ async function setupGoogle(day) {
       Object.entries(markers).forEach(([k, { m, pin, num }]) => {
         const on = k === id;
         pin.classList.toggle("gon", on);
-        m.zIndex = on ? 999 : num;
+        m.zIndex = on ? 999 : pin.classList.contains("now") ? 500 : pin.classList.contains("past") ? num : 100 + num;
       });
     },
     focus(id) {
