@@ -498,9 +498,9 @@ details.menu-more[open] > summary .chev { transform: rotate(90deg); }
 
 /* ---------- Nir in the day header ---------- */
 .head { position: relative; }
-.headnir { position: absolute; right: -6px; top: 4px; width: 92px; height: 92px; transform: rotate(6deg); filter: drop-shadow(0 4px 10px rgba(var(--shade),.18)); pointer-events: none; z-index: 1; }
-.head .kicker { padding-right: 84px; }
-@media (min-width: 560px) { .headnir { width: 112px; height: 112px; } }
+.dayh1 { display: flex; align-items: center; gap: .14em; font-size: clamp(30px, 9vw, 48px); }
+.dayh1 span { min-width: 0; }
+.headnir { flex: none; width: 1em; height: 1em; transform: rotate(6deg); filter: drop-shadow(0 2px 5px rgba(var(--shade),.18)); }
 
 /* ---------- stamp tool (assets/stamp.js) ---------- */
 .stamps { position: absolute; left: 0; top: 0; width: 100%; pointer-events: none; z-index: 30; overflow: hidden; }
