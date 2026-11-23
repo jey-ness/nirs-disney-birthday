@@ -488,7 +488,7 @@ function walkHtml(prev, cur) {
 const KIND_ICON = {
   ride: ph("rocket-launch", 14), show: ph("mask-happy", 14), parade: ph("flag-banner", 14), fireworks: ph("shooting-star", 14),
   food: ph("fork-knife", 14), drinks: ph("martini", 14), experience: ph("star", 14), explore: ph("compass", 14),
-  shopping: ph("shopping-bag", 14), travel: ph("bus", 14),
+  shopping: ph("storefront", 14), travel: ph("bus", 14),
 };
 const KIND_LABEL = Object.fromEntries(KINDS);
 const kindHtml = (k) => (KIND_LABEL[k] ? `<span class="kind">${KIND_ICON[k]}${esc(KIND_LABEL[k])}</span>` : "");
@@ -522,14 +522,12 @@ function listHtml(day, items, cur) {
 let mapApi = { highlight() {}, focus() {}, draw() {}, drawPois() {} };
 
 // "Shops & food" map view: the park's shops (assets/explore.js SHOPS) and snack stops (SNACKS).
-const POI_ICON = {
-  shop: ph("shopping-bag", 16),
-  food: ph("fork-knife", 16),
-};
+const POI_ICON = { shop: ph("storefront", 14), snack: ph("coffee", 14), food: ph("fork-knife", 14) };
+const POI_LABEL = { shop: "Shop", snack: "Snacks", food: "Food" };
 function poisFor(day) {
   return [
     ...(SHOPS[day.slug] || []).map((x, i) => ({ ...x, type: "shop", id: "shop-" + i })),
-    ...(SNACKS[day.slug] || []).map((x, i) => ({ ...x, type: "food", id: "food-" + i })),
+    ...(SNACKS[day.slug] || []).map((x, i) => ({ ...x, type: x.meal ? "food" : "snack", id: "food-" + i })),
   ].filter((x) => x.lat != null);
 }
 function showPoi(p, day) {
@@ -537,7 +535,7 @@ function showPoi(p, day) {
   if (!card) return;
   if (!p) { card.hidden = true; mapApi.highlight(null); return; }
   card.innerHTML = `<div class="poi-body">
-      <span class="tags"><span class="kind">${POI_ICON[p.type]}${p.type === "shop" ? "Shop" : "Snacks & food"}</span>${p.lorcana ? tag("lorcana", "Ask for Lorcana") : ""}${p.approx ? tag("approx", "Approx. pin") : ""}</span>
+      <span class="tags"><span class="kind">${POI_ICON[p.type]}${POI_LABEL[p.type]}</span>${p.lorcana ? tag("lorcana", "Ask for Lorcana") : ""}${p.approx ? tag("approx", "Approx. pin") : ""}</span>
       <b>${esc(p.name)}</b><span class="muted">${esc(p.area)} · ${esc(p.note)}</span>
     </div>
     <div class="poi-act">
@@ -619,7 +617,7 @@ function wireDay(day) {
     showPoi(null, day);
     if (mapMode === "poi") {
       const nS = pois.filter((p) => p.type === "shop").length, nF = pois.length - nS;
-      note.textContent = `${nS} shops and ${nF} snack stops. Tap one for details; Lorcana shops are ringed.`;
+      note.textContent = `${nS} shops and ${nF} snack and food stops. Tap one for details; Lorcana shops are ringed.`;
       mapApi.drawPois(pois, (p) => showPoi(p, day));
     } else {
       note.textContent = (note.dataset.base || "") + lastApproxTxt;
@@ -707,7 +705,7 @@ function setupSvg() {
       box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">
         <path d="${path}" fill="none" style="stroke:var(--ink-500)" stroke-width="1.5" stroke-dasharray="4 4" stroke-linejoin="round"/>
         ${pins.map((p) => { const [x, y] = pt(p.stop); return p.poi
-          ? `<g class="svgpin poi ${p.poi.type}${p.poi.lorcana ? " lorcana" : ""}" data-id="${esc(p.ev.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle r="10"/><text>${p.poi.type === "shop" ? "S" : "F"}</text></g>`
+          ? `<g class="svgpin poi ${p.poi.type}${p.poi.lorcana ? " lorcana" : ""}" data-id="${esc(p.ev.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle r="11"/><g transform="translate(-6.5,-6.5) scale(.0508)" class="poi-ic">${POI_ICON[p.poi.type].replace(/^<svg[^>]*>|<\/svg>$/g, "")}</g></g>`
           : `<g class="svgpin${p.state ? " " + p.state : ""}" data-id="${esc(p.ev.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">${p.state === "now" ? `<circle class="halo" r="20"/>` : ""}<circle r="13"/><text>${p.num}</text></g>`; }).join("")}
       </svg>`;
       if (pins[0].poi) path && box.querySelector("svg path")?.remove(); // no route between shops

@@ -68,7 +68,8 @@ export const SHOPS = {
   ],
 };
 
-// Snack and food stops worth knowing in each park, for the map's "Shops & food" view. Public park info.
+// Snack and food stops worth knowing in each park, for the map's "Shops & food" view. meal: a proper
+// quick-service restaurant (fork & knife); the rest are snacks and coffee (cup). Public park info.
 export const SNACKS = {
   epcot: [
     { name: "Kringla Bakeri og Kafe", area: "Norway", note: "School bread and lefse", lat: 28.3706428, lng: -81.54691 },
@@ -81,13 +82,13 @@ export const SNACKS = {
     { name: "Aloha Isle", area: "Adventureland", note: "Dole Whip", lat: 28.41822, lng: -81.58295, approx: true },
     { name: "Gaston's Tavern", area: "Fantasyland", note: "The giant cinnamon roll and LeFou's Brew", lat: 28.4213393, lng: -81.5804385 },
     { name: "Sleepy Hollow", area: "Liberty Square", note: "Sweet waffle sandwiches", lat: 28.4192628, lng: -81.5819914 },
-    { name: "Casey's Corner", area: "Main Street, U.S.A.", note: "Hot dogs and corn dog nuggets", lat: 28.4179445, lng: -81.5813558 },
+    { name: "Casey's Corner", meal: true, area: "Main Street, U.S.A.", note: "Hot dogs and corn dog nuggets", lat: 28.4179445, lng: -81.5813558 },
     { name: "Main Street Bakery", area: "Main Street, U.S.A.", note: "Starbucks coffee and holiday treats", lat: 28.417348, lng: -81.5810819 },
   ],
   "hollywood-studios": [
     { name: "Milk Stand", area: "Star Wars: Galaxy's Edge", note: "Blue and green milk", lat: 28.3543744, lng: -81.5623373 },
-    { name: "Docking Bay 7 Food and Cargo", area: "Star Wars: Galaxy's Edge", note: "Proper lunch in the spaceport", lat: 28.3540517, lng: -81.5616011 },
-    { name: "Woody's Lunch Box", area: "Toy Story Land", note: "Lunch box tarts and the grilled cheese", lat: 28.3557347, lng: -81.5622195 },
+    { name: "Docking Bay 7 Food and Cargo", meal: true, area: "Star Wars: Galaxy's Edge", note: "Proper lunch in the spaceport", lat: 28.3540517, lng: -81.5616011 },
+    { name: "Woody's Lunch Box", meal: true, area: "Toy Story Land", note: "Lunch box tarts and the grilled cheese", lat: 28.3557347, lng: -81.5622195 },
     { name: "Trolley Car Café", area: "Hollywood Boulevard", note: "Starbucks coffee", lat: 28.3577437, lng: -81.5596472 },
     { name: "Hollywood Scoops", area: "Sunset Boulevard", note: "Ice cream sandwiches", lat: 28.3591572, lng: -81.560083 },
   ],
