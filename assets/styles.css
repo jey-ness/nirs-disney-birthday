@@ -569,6 +569,11 @@ body.stamping .stamp-fab { background: var(--surface); box-shadow: 0 0 0 3px var
 .ppin { width: 28px; height: 28px; box-sizing: border-box; padding: 7px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
   background: var(--surface); color: var(--ink-950); box-shadow: 0 0 0 2px var(--bg), 0 2px 6px rgba(var(--shade),.3); transition: transform .15s; }
 .ppin svg { width: 14px; height: 14px; }
+/* on the dark map (Dark and Magic) the discs go light so they stand out */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ppin { background: var(--ink-950); color: var(--bg); } :root:not([data-theme="light"]) .svgpin.poi circle { fill: var(--ink-950); } :root:not([data-theme="light"]) .svgpin.poi .poi-ic { fill: var(--bg); } }
+:root[data-theme="dark"] .ppin, :root[data-theme="magic"] .ppin { background: var(--ink-950); color: var(--bg); }
+:root[data-theme="dark"] .svgpin.poi circle, :root[data-theme="magic"] .svgpin.poi circle { fill: var(--ink-950); }
+:root[data-theme="dark"] .svgpin.poi .poi-ic, :root[data-theme="magic"] .svgpin.poi .poi-ic { fill: var(--bg); }
 .ppin.lorcana { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4.5px var(--amber), 0 2px 6px rgba(var(--shade),.3); }
 .ppin.gon { transform: scale(1.2); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4.5px var(--accent), 0 4px 12px rgba(var(--shade),.35); }
 .svgpin.poi circle { fill: var(--surface); stroke: var(--bg); stroke-width: 2; }
