@@ -1,5 +1,5 @@
 import { createStore, createSync, renderCalendar, openEditor, openTodoSheet, toMin, toHM, fmtClock, fmtRange, SYNC_TEXT, KINDS } from "./edit.js";
-import { EXPLORE, SHOPS, LORCANA_SURE } from "./explore.js";
+import { EXPLORE, SHOPS, SNACKS, LORCANA_SURE } from "./explore.js";
 import { loadForecast, dayLine, dayDetail, packingAlerts, alertHtml, CREDIT } from "./weather.js";
 import { initStamps, DAY_STICKER } from "./stamp.js";
 
@@ -382,7 +382,14 @@ function renderDay(trip, day) {
 
     <div class="nownext" id="nownext"></div>
     <div class="stick" id="stick">
-      <div class="mapbox"><div id="map" role="region" aria-label="Map of the day's stops"></div></div>
+      <div class="mapbox">
+        <div id="map" role="region" aria-label="Map of the day's stops"></div>
+        <div class="mapmode" role="group" aria-label="Map shows">
+          <button type="button" data-mode="plan" aria-pressed="true">Plan</button>
+          <button type="button" data-mode="poi" aria-pressed="false">Shops &amp; food</button>
+        </div>
+        <div class="poicard" id="poiCard" hidden></div>
+      </div>
     </div>
     <p class="mapnote" id="mapnote"></p>
 
@@ -519,7 +526,35 @@ function listHtml(day, items, cur) {
 }
 
 // selection shared by list rows, calendar and both map renderers (keyed by event id)
-let mapApi = { highlight() {}, focus() {}, draw() {} };
+let mapApi = { highlight() {}, focus() {}, draw() {}, drawPois() {} };
+
+// "Shops & food" map view: the park's shops (assets/explore.js SHOPS) and snack stops (SNACKS).
+const POI_ICON = {
+  shop: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>`,
+  food: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v8M6 3v5a2 2 0 0 0 4 0V3M8 11v10"/><path d="M17 21V3c-2 1-3 4-3 7h3"/></svg>`,
+};
+function poisFor(day) {
+  return [
+    ...(SHOPS[day.slug] || []).map((x, i) => ({ ...x, type: "shop", id: "shop-" + i })),
+    ...(SNACKS[day.slug] || []).map((x, i) => ({ ...x, type: "food", id: "food-" + i })),
+  ].filter((x) => x.lat != null);
+}
+function showPoi(p, day) {
+  const card = document.getElementById("poiCard");
+  if (!card) return;
+  if (!p) { card.hidden = true; mapApi.highlight(null); return; }
+  card.innerHTML = `<div class="poi-body">
+      <span class="tags"><span class="kind">${POI_ICON[p.type]}${p.type === "shop" ? "Shop" : "Snacks & food"}</span>${p.lorcana ? tag("lorcana", "Ask for Lorcana") : ""}${p.approx ? tag("approx", "Approx. pin") : ""}</span>
+      <b>${esc(p.name)}</b><span class="muted">${esc(p.area)} · ${esc(p.note)}</span>
+    </div>
+    <div class="poi-act">
+      <button type="button" class="poi-x" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <a class="dir" href="${esc(mapsUrl({ name: p.name, lat: p.lat, lng: p.lng, query: `${p.name}, ${day.park}, Walt Disney World` }, day.park))}" target="_blank" rel="noopener">Directions ${ICON.arrow}</a>
+    </div>`;
+  card.hidden = false;
+  card.querySelector(".poi-x").onclick = () => showPoi(null, day);
+  mapApi.highlight("poi:" + p.id);
+}
 function select(id, from) {
   document.querySelectorAll("#sched li.on").forEach((el) => el.classList.remove("on"));
   const li = document.querySelector(`#sched li[data-id="${CSS.escape(id)}"]`);
@@ -529,7 +564,10 @@ function select(id, from) {
     const stickH = document.getElementById("stick").getBoundingClientRect().height;
     window.scrollTo({ top: window.scrollY + li.getBoundingClientRect().top - stickH - 8, behavior: "smooth" });
   }
-  if (from === "list") mapApi.focus(id);
+  if (from === "list") {
+    if (document.querySelector('.mapmode button[data-mode="plan"]')?.getAttribute("aria-pressed") === "false") document.querySelector('.mapmode button[data-mode="plan"]').click();
+    mapApi.focus(id);
+  }
 }
 
 function wireDay(day) {
@@ -578,9 +616,30 @@ function wireDay(day) {
     const approxTxt =
       approx.length === 1 ? ` Pin ${approx[0]} is approximate.`
       : approx.length ? ` Pins ${approx.slice(0, -1).join(", ")} and ${approx.at(-1)} are approximate.` : "";
-    note.textContent = (note.dataset.base || "") + approxTxt;
-    mapApi.draw(pins);
+    lastPins = pins;
+    lastApproxTxt = approxTxt;
+    drawMap();
   }
+  let mapMode = "plan", lastPins = [], lastApproxTxt = "";
+  const pois = poisFor(day);
+  function drawMap() {
+    showPoi(null, day);
+    if (mapMode === "poi") {
+      const nS = pois.filter((p) => p.type === "shop").length, nF = pois.length - nS;
+      note.textContent = `${nS} shops and ${nF} snack stops. Tap one for details; Lorcana shops are ringed.`;
+      mapApi.drawPois(pois, (p) => showPoi(p, day));
+    } else {
+      note.textContent = (note.dataset.base || "") + lastApproxTxt;
+      mapApi.draw(lastPins);
+    }
+  }
+  document.querySelector(".mapmode").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-mode]");
+    if (!b || b.dataset.mode === mapMode) return;
+    mapMode = b.dataset.mode;
+    document.querySelectorAll(".mapmode button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    drawMap();
+  });
 
   document.querySelector(".seg").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-view]");
@@ -636,7 +695,11 @@ function setupSvg() {
   const box = document.getElementById("map");
   let last = [];
   mapApi = {
-    draw(pins) {
+    drawPois(pois, onPick) {
+      const pins = pois.map((p) => ({ ev: { id: "poi:" + p.id }, stop: p, poi: p }));
+      this.draw(pins, onPick);
+    },
+    draw(pins, onPick) {
       last = pins;
       if (!pins.length) { box.innerHTML = ""; return; }
       const W = box.clientWidth || 342, H = box.clientHeight || 240, pad = 26;
@@ -650,11 +713,16 @@ function setupSvg() {
       const path = pins.map((p, i) => `${i ? "L" : "M"}${pt(p.stop).map((v) => v.toFixed(1)).join(",")}`).join(" ");
       box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">
         <path d="${path}" fill="none" style="stroke:var(--ink-500)" stroke-width="1.5" stroke-dasharray="4 4" stroke-linejoin="round"/>
-        ${pins.map((p) => { const [x, y] = pt(p.stop); return `<g class="svgpin${p.state ? " " + p.state : ""}" data-id="${esc(p.ev.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">${p.state === "now" ? `<circle class="halo" r="20"/>` : ""}<circle r="13"/><text>${p.num}</text></g>`; }).join("")}
+        ${pins.map((p) => { const [x, y] = pt(p.stop); return p.poi
+          ? `<g class="svgpin poi ${p.poi.type}${p.poi.lorcana ? " lorcana" : ""}" data-id="${esc(p.ev.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle r="10"/><text>${p.poi.type === "shop" ? "S" : "F"}</text></g>`
+          : `<g class="svgpin${p.state ? " " + p.state : ""}" data-id="${esc(p.ev.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">${p.state === "now" ? `<circle class="halo" r="20"/>` : ""}<circle r="13"/><text>${p.num}</text></g>`; }).join("")}
       </svg>`;
+      if (pins[0].poi) path && box.querySelector("svg path")?.remove(); // no route between shops
       box.querySelector("svg").addEventListener("click", (e) => {
         const g = e.target.closest(".svgpin");
-        if (g) select(g.dataset.id, "map");
+        if (!g) return;
+        const p = pins.find((x) => x.ev.id === g.dataset.id);
+        if (p?.poi) onPick?.(p.poi); else select(g.dataset.id, "map");
       });
     },
     highlight(id) {
@@ -727,10 +795,26 @@ async function setupGoogle(day) {
   // Dashed route, like the design's walking line, so it reads as "the way between stops".
   const line = new Polyline({ map, path: [], strokeOpacity: 0, icons: [{ icon: { path: "M 0,-1 0,1", strokeColor: lineColor, strokeOpacity: 0.85, strokeWeight: 3, scale: 2.5 }, offset: "0", repeat: "12px" }] });
   let markers = {}, fitted = "";
+  const clearMarkers = () => { Object.values(markers).forEach(({ m }) => (m.map = null)); markers = {}; };
+  map.addListener("click", () => document.getElementById("poiCard") && (document.getElementById("poiCard").hidden = true));
   mapApi = {
+    drawPois(pois, onPick) {
+      clearMarkers();
+      line.setPath([]);
+      const bounds = new LatLngBounds();
+      pois.forEach((p, i) => {
+        const pin = document.createElement("div");
+        pin.className = `ppin ${p.type}${p.lorcana ? " lorcana" : ""}`;
+        pin.innerHTML = POI_ICON[p.type];
+        const m = new AdvancedMarkerElement({ map, position: { lat: p.lat, lng: p.lng }, content: pin, title: p.name, gmpClickable: true, zIndex: 100 + i });
+        pin.addEventListener("click", (e) => { e.stopPropagation(); onPick(p); });
+        markers["poi:" + p.id] = { m, pin, num: 100 + i };
+        bounds.extend({ lat: p.lat, lng: p.lng });
+      });
+      if (pois.length) { map.fitBounds(bounds, { top: 52, right: 30, bottom: 26, left: 30 }); fitted = "poi"; }
+    },
     draw(pins) {
-      Object.values(markers).forEach(({ m }) => (m.map = null));
-      markers = {};
+      clearMarkers();
       line.setPath(pins.map((p) => ({ lat: p.stop.lat, lng: p.stop.lng })));
       const bounds = new LatLngBounds();
       pins.forEach((p) => {
@@ -743,12 +827,13 @@ async function setupGoogle(day) {
         bounds.extend({ lat: p.stop.lat, lng: p.stop.lng });
       });
       const key = pins.map((p) => `${p.stop.lat},${p.stop.lng}`).sort().join("|");
-      if (pins.length && key !== fitted) { map.fitBounds(bounds, 36); fitted = key; } // refit only when the set of places changes
+      if (pins.length && key !== fitted) { map.fitBounds(bounds, { top: 52, right: 36, bottom: 30, left: 36 }); fitted = key; } // refit only when the set of places changes
     },
     highlight(id) {
       Object.entries(markers).forEach(([k, { m, pin, num }]) => {
         const on = k === id;
         pin.classList.toggle("gon", on);
+        if (pin.classList.contains("ppin")) { m.zIndex = on ? 999 : num; return; }
         m.zIndex = on ? 999 : pin.classList.contains("now") ? 500 : pin.classList.contains("past") ? num : 100 + num;
       });
     },

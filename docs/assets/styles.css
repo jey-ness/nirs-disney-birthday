@@ -560,3 +560,26 @@ body.stamping .stamp-fab { background: var(--surface); box-shadow: 0 0 0 3px var
 :root[data-theme="magic"] .stamp-fab { box-shadow: 0 0 18px rgba(244,213,141,.55); }
 :root[data-theme="magic"] .stamp-wheel { box-shadow: 0 0 0 8px rgba(244,213,141,.15), 0 0 40px rgba(233,184,240,.35); }
 @media (prefers-reduced-motion: reduce) { .stamp.pop { animation: none; } .stamp-wheel { transition: none; } }
+
+/* ---------- map: Plan / Shops & food switch ---------- */
+.mapmode { position: absolute; left: 10px; top: 10px; z-index: 2; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface); box-shadow: 0 2px 10px rgba(var(--shade),.22), 0 0 0 1px var(--ink-150); }
+.mapmode button { all: unset; cursor: pointer; min-height: 30px; padding: 0 12px; border-radius: 999px; font: 700 12px var(--sans); color: var(--ink-500); display: inline-flex; align-items: center; }
+.mapmode button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.ppin { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; background: var(--surface); color: var(--ink-950);
+  box-shadow: 0 0 0 2px var(--bg), 0 2px 6px rgba(var(--shade),.3); transition: transform .15s; }
+.ppin.food { background: var(--ink-950); color: var(--on-ink); }
+.ppin.lorcana { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4.5px var(--amber), 0 2px 6px rgba(var(--shade),.3); }
+.ppin.gon { transform: scale(1.2); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4.5px var(--accent), 0 4px 12px rgba(var(--shade),.35); }
+:root[data-theme="magic"] .ppin.food { box-shadow: 0 0 0 2px var(--bg), 0 0 10px rgba(233,184,240,.45); }
+.svgpin.poi circle { fill: var(--surface); stroke: var(--ink-950); stroke-width: 1.5; }
+.svgpin.poi text { fill: var(--ink-950); font-size: 10px; }
+.svgpin.poi.food circle { fill: var(--ink-950); stroke: var(--bg); } .svgpin.poi.food text { fill: var(--on-ink); }
+.svgpin.poi.lorcana circle { stroke: var(--amber); stroke-width: 3; }
+.svgpin.poi.on circle { stroke: var(--accent); stroke-width: 3; }
+.poicard { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 2; display: flex; gap: 10px; align-items: flex-start; padding: 12px 12px 12px 14px; border-radius: 14px;
+  background: var(--surface); box-shadow: 0 6px 20px rgba(var(--shade),.3), 0 0 0 1px var(--ink-150); }
+.poicard[hidden] { display: none; }
+.poi-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.poi-body b { font-size: 15px; } .poi-body .muted { font-size: 13px; }
+.poi-act { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.poi-x { all: unset; cursor: pointer; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--ink-500); background: var(--ink-100); }
