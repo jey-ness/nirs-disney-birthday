@@ -1,3 +1,4 @@
+import { ph } from "./icons.js";
 // Editable schedule: event store, encrypted live sync (Supabase), calendar day view, editor sheet.
 // Edits are stored as per-event overrides on top of data/trip.json, merged by last-write-wins per event.
 
@@ -408,7 +409,7 @@ export function openEditor({ ev, isNew, isBase, places, knownTags = [], getPlace
     <form method="dialog" class="sheet-body" id="editForm" novalidate>
       <div class="sheet-top">
         <button type="button" class="sheet-x" id="editCancel" aria-label="Close">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          ${ph("x", 20)}
         </button>
         <h2 id="editTitle">${isNew ? "New event" : "Edit event"}</h2>
         <button type="submit" class="sheet-save">Save</button>
@@ -424,10 +425,10 @@ export function openEditor({ ev, isNew, isBase, places, knownTags = [], getPlace
       <div class="fld place-fld">
         <span class="label" id="plLabel">Location</span>
         <div class="place-picked" id="plPicked" hidden>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+          ${ph("map-pin", 18)}
           <span class="pl-text"><b id="plName"></b><span id="plAddr"></span></span>
           <button type="button" class="pl-clear" id="plClear" aria-label="Remove location">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            ${ph("x", 16)}
           </button>
         </div>
         <div class="pl-box" id="plBox">
@@ -593,7 +594,7 @@ export function openTodoSheet({ groups, defaultGroup, onSave, packing = false })
     <form method="dialog" class="sheet-body" novalidate>
       <div class="sheet-top">
         <button type="button" class="sheet-x" data-close aria-label="Close">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          ${ph("x", 20)}
         </button>
         <h2 id="todoTitle">${packing ? "Add to packing" : "New to-do"}</h2>
         <button type="submit" class="sheet-save">Add</button>

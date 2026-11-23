@@ -3,6 +3,8 @@
 // forecast into packing alerts (rain, storms, cool or hot days) for the home page.
 // No trip details live here: dates and location come from the decrypted plan at runtime.
 
+import { ph } from "./icons.js";
+
 const STORE = "orlando-trip-weather-v1";
 const FRESH_MS = 3 * 3600 * 1000;
 const API = "https://api.open-meteo.com/v1/forecast";
@@ -16,15 +18,9 @@ const LABELS = [
 ];
 const label = (c) => (LABELS.find(([cs]) => cs.includes(c)) || [0, "—"])[1];
 
-const svg = (body) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
-const CLOUD = `<path d="M7 18h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 11.1 3.5 3.5 0 0 0 7 18z"/>`;
 const ICONS = {
-  sun: svg(`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>`),
-  partly: svg(`<path d="M8 3.5v1.2M3.5 8h1.2M4.8 4.8l.9.9M11.2 4.8l-.9.9"/><path d="M5.6 10.2A3 3 0 0 1 10.6 7"/><path d="M9 19h8a3.5 3.5 0 0 0 .4-6.98 5 5 0 0 0-9.3 1.1A3 3 0 0 0 9 19z"/>`),
-  cloud: svg(CLOUD),
-  rain: svg(`<path d="M7 15h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 8.1 3.5 3.5 0 0 0 7 15z"/><path d="M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/>`),
-  storm: svg(`<path d="M7 15h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 8.1 3.5 3.5 0 0 0 7 15z"/><path d="M12.5 15l-2 3.5h3l-2 3.5"/>`),
-  alert: svg(`<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4.5M12 17.5v.01"/>`),
+  sun: ph("sun", 20), partly: ph("cloud-sun", 20), cloud: ph("cloud", 20),
+  rain: ph("cloud-rain", 20), storm: ph("cloud-lightning", 20), alert: ph("warning", 20),
 };
 const iconFor = (c) => (c >= 95 ? ICONS.storm : c >= 51 ? ICONS.rain : c === 3 || c === 45 || c === 48 ? ICONS.cloud : c === 2 ? ICONS.partly : ICONS.sun);
 

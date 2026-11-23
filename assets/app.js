@@ -2,6 +2,7 @@ import { createStore, createSync, renderCalendar, openEditor, openTodoSheet, toM
 import { EXPLORE, SHOPS, SNACKS, LORCANA_SURE } from "./explore.js";
 import { loadForecast, dayLine, dayDetail, packingAlerts, alertHtml, CREDIT } from "./weather.js";
 import { initStamps, DAY_STICKER } from "./stamp.js";
+import { ph } from "./icons.js";
 
 // Orlando trip site. No build step: plain ES module.
 // Optional /config.js (git-ignored) sets window.TRIP_CONFIG = { mapsKey, mapId, confirmations }.
@@ -23,13 +24,13 @@ const tag = (cls, text) => `<span class="tag ${TAG_CLASSES.has(cls) ? cls : "cus
 const tagsFor = (tags = []) => (tags.length ? `<span class="tags">${tags.map((t) => tag(t, BADGE[t] || t)).join("")}</span>` : "");
 
 const ICON = {
-  chevronRight: `<svg class="chevron-r" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" style="color:var(--ink-300)"><path d="M9 6l6 6-6 6"/></svg>`,
-  chevronUp: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>`,
-  chevronDown: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" style="color:var(--ink-700)"><path d="M6 9l6 6 6-6"/></svg>`,
-  arrow: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>`,
-  home: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" style="margin-bottom:2px"><path d="M4 10.5L12 4l8 6.5V20h-5.5v-5.5h-5V20H4z"/></svg>`,
-  menu: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" style="margin-bottom:2px"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`,
-  clipboard: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" style="margin-bottom:2px"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12l2 2 4-4"/></svg>`,
+  chevronRight: ph("caret-right", 18, 'class="chevron-r" style="color:var(--ink-300)"'),
+  chevronUp: ph("caret-up", 16),
+  chevronDown: ph("caret-down", 18, 'style="color:var(--ink-700)"'),
+  arrow: ph("arrow-up-right", 14),
+  home: ph("house", 21, 'style="margin-bottom:2px"'),
+  menu: ph("list", 21, 'style="margin-bottom:2px"'),
+  clipboard: ph("clipboard-text", 19, 'style="margin-bottom:2px"'),
 };
 
 
@@ -329,7 +330,7 @@ const VIEW_STORE = "orlando-trip-view-v1";
 const getView = () => { try { return localStorage.getItem(VIEW_STORE) === "cal" ? "cal" : "list"; } catch { return "list"; } };
 const setView = (v) => { try { localStorage.setItem(VIEW_STORE, v); } catch { /* ignore */ } };
 const timeHtml = (min) => { const t = fmtClock(min); const [hm, ap] = t.split(" "); return `${esc(hm)}<small>${ap}</small>`; };
-const ICON_EDIT = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>`;
+const ICON_EDIT = ph("pencil-simple", 18);
 
 // Map pins follow the (edited) schedule: every event with a place gets the next number.
 function numbered(day, events) {
@@ -484,18 +485,10 @@ function walkHtml(prev, cur) {
 }
 
 // Small line icons for each item type (KINDS in edit.js); neutral colour, so tags keep the colour.
-const KI = (d) => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const KIND_ICON = {
-  ride: KI(`<path d="M3 17c3-9 6-9 9 0s6 9 9 0"/><path d="M3 20h18"/>`),
-  show: KI(`<path d="M4 5h16v10H4z"/><path d="M9 19h6M12 15v4"/>`),
-  parade: KI(`<path d="M4 21V4"/><path d="M4 4h12l-2 4 2 4H4"/>`),
-  fireworks: KI(`<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>`),
-  food: KI(`<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10"/><path d="M17 21V3c-2 1-3 4-3 7h3"/>`),
-  drinks: KI(`<path d="M6 3h12l-6 9z"/><path d="M12 12v8M8 21h8"/>`),
-  experience: KI(`<path d="M12 3l2.5 6 6.5.5-5 4.3 1.5 6.2L12 16.7 6.5 20l1.5-6.2-5-4.3 6.5-.5z"/>`),
-  explore: KI(`<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>`),
-  shopping: KI(`<path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>`),
-  travel: KI(`<path d="M5 17h14V9a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4z"/><path d="M5 12h14M8 21l1-4M16 21l-1-4"/>`),
+  ride: ph("rocket-launch", 14), show: ph("mask-happy", 14), parade: ph("flag-banner", 14), fireworks: ph("shooting-star", 14),
+  food: ph("fork-knife", 14), drinks: ph("martini", 14), experience: ph("star", 14), explore: ph("compass", 14),
+  shopping: ph("shopping-bag", 14), travel: ph("bus", 14),
 };
 const KIND_LABEL = Object.fromEntries(KINDS);
 const kindHtml = (k) => (KIND_LABEL[k] ? `<span class="kind">${KIND_ICON[k]}${esc(KIND_LABEL[k])}</span>` : "");
@@ -530,8 +523,8 @@ let mapApi = { highlight() {}, focus() {}, draw() {}, drawPois() {} };
 
 // "Shops & food" map view: the park's shops (assets/explore.js SHOPS) and snack stops (SNACKS).
 const POI_ICON = {
-  shop: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>`,
-  food: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v8M6 3v5a2 2 0 0 0 4 0V3M8 11v10"/><path d="M17 21V3c-2 1-3 4-3 7h3"/></svg>`,
+  shop: ph("shopping-bag", 16),
+  food: ph("fork-knife", 16),
 };
 function poisFor(day) {
   return [
@@ -548,7 +541,7 @@ function showPoi(p, day) {
       <b>${esc(p.name)}</b><span class="muted">${esc(p.area)} · ${esc(p.note)}</span>
     </div>
     <div class="poi-act">
-      <button type="button" class="poi-x" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <button type="button" class="poi-x" aria-label="Close">${ph("x", 16)}</button>
       <a class="dir" href="${esc(mapsUrl({ name: p.name, lat: p.lat, lng: p.lng, query: `${p.name}, ${day.park}, Walt Disney World` }, day.park))}" target="_blank" rel="noopener">Directions ${ICON.arrow}</a>
     </div>`;
   card.hidden = false;
@@ -846,17 +839,17 @@ async function setupGoogle(day) {
 
 // ---------- menu ----------
 const MI = {
-  todo: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>`,
-  bookings: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 12h6M9 16h4"/></svg>`,
-  packing: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="7" width="14" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M5 12h14"/></svg>`,
-  weather: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="3"/><path d="M9 2v1.5M2 9h1.5M4 4l1 1M14 4l-1 1"/><path d="M8 19h9a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.4 1.6A2.8 2.8 0 0 0 8 19z"/></svg>`,
-  hours: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>`,
-  around: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>`,
-  sun: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,
-  moon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>`,
-  sparkle: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z"/></svg>`,
+  todo: ph("check-square", 20),
+  bookings: ph("ticket", 20),
+  packing: ph("suitcase-rolling", 20),
+  weather: ph("cloud-sun", 20),
+  hours: ph("clock", 20),
+  around: ph("map-pin", 20),
+  sun: ph("sun", 16),
+  moon: ph("moon", 16),
+  sparkle: ph("sparkle", 16),
 };
-const CHEV = `<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>`;
+const CHEV = ph("caret-right", 18, 'class="chev"');
 const NIGHT_TAGS = ["Fireworks", "Night show"];
 
 function themeSegHtml() {

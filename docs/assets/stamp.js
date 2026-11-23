@@ -3,12 +3,14 @@
 // (and Clear) between both phones through the same encrypted row as schedule edits.
 // The sticker pictures arrive inside the decrypted trip bundle, never as public files.
 
+import { ph } from "./icons.js";
+
 const OLD_STORE = "orlando-trip-stamps-v1"; // per-phone stamps from before sync; moved into the store once
 const PER_WHEEL = 8;
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const STAMP_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 13.5V11a2.5 2.5 0 1 1 5 0v2.5"/><path d="M12 3.5a3 3 0 0 1 3 3c0 1.3-.6 2-1.2 2.8-.4.6-.3 1.2-.3 1.7h-3c0-.5.1-1.1-.3-1.7C9.6 8.5 9 7.8 9 6.5a3 3 0 0 1 3-3z"/><rect x="4.5" y="13.5" width="15" height="4" rx="1.2"/><path d="M6 20.5h12"/></svg>`;
-const MORE_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>`;
+const STAMP_ICON = ph("stamp", 26);
+const MORE_ICON = ph("arrows-clockwise", 22);
 
 export function initStamps(stickers, pageKey, store) {
   if (!stickers?.length || !store) return;
