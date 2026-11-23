@@ -587,3 +587,6 @@ body.stamping .stamp-fab { background: var(--surface); box-shadow: 0 0 0 3px var
 .poi-body b { font-size: 15px; } .poi-body .muted { font-size: 13px; }
 .poi-act { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .poi-x { all: unset; cursor: pointer; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--ink-500); background: var(--ink-100); }
+.stamp-who { position: relative; margin-bottom: 10px; display: flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--surface); box-shadow: 0 6px 18px rgba(var(--shade),.25), 0 0 0 1px var(--ink-150); }
+.stamp-who button { all: unset; cursor: pointer; min-height: 36px; padding: 0 20px; border-radius: 999px; font: 700 14px var(--sans); color: var(--ink-500); display: inline-flex; align-items: center; }
+.stamp-who button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }

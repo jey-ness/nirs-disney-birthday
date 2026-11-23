@@ -25,7 +25,11 @@ export function initStamps(stickers, pageKey, store) {
   const stamps = () => store.stampsFor(pageKey).filter((o) => byId[o.s]);
   let current = null; // sticker id while stamping
   let wheelPage = 0;
-  const pages = Math.ceil(stickers.length / PER_WHEEL);
+  // two sets: Nir and Jey (sticker.who); the wheel shows one set at a time
+  const WHO = [["nir", "Nir"], ["jey", "Jey"]].filter(([w]) => stickers.some((x) => (x.who || "nir") === w));
+  let who = WHO[0][0];
+  const setList = () => stickers.filter((x) => (x.who || "nir") === who);
+  const pages = () => Math.ceil(setList().length / PER_WHEEL);
 
   document.body.insertAdjacentHTML("beforeend", `
     <div class="stamps" id="stampLayer" aria-hidden="true"></div>
@@ -38,7 +42,8 @@ export function initStamps(stickers, pageKey, store) {
     <button type="button" class="stamp-fab" id="stampFab" aria-label="Stamps" aria-expanded="false">${STAMP_ICON}</button>
     <div class="stamp-wheel-wrap" id="stampWheel" hidden>
       <button type="button" class="stamp-scrim" id="stampScrim" aria-label="Close stamps"></button>
-      <div class="stamp-wheel" role="dialog" aria-label="Pick a Nir stamp">
+      ${WHO.length > 1 ? `<div class="stamp-who" role="group" aria-label="Whose stickers">${WHO.map(([w, l]) => `<button type="button" data-who="${w}" aria-pressed="${w === who}">${l}</button>`).join("")}</div>` : ""}
+      <div class="stamp-wheel" role="dialog" aria-label="Pick a stamp">
         <div class="ring" id="stampRing"></div>
         <button type="button" class="hub" id="stampMore" aria-label="More stamps">${MORE_ICON}<span id="stampPage"></span></button>
       </div>
@@ -53,14 +58,15 @@ export function initStamps(stickers, pageKey, store) {
   const paint = () => { layer.innerHTML = stamps().map((s) => stampEl(s)).join(""); layer.style.height = document.documentElement.scrollHeight + "px"; };
 
   function drawRing() {
-    const list = stickers.slice(wheelPage * PER_WHEEL, wheelPage * PER_WHEEL + PER_WHEEL);
+    const list = setList().slice(wheelPage * PER_WHEEL, wheelPage * PER_WHEEL + PER_WHEEL);
     ring.innerHTML = list.map((s, i) => {
       const a = (i / PER_WHEEL) * 2 * Math.PI - Math.PI / 2;
       return `<button type="button" class="slot${s.id === current ? " on" : ""}" data-s="${esc(s.id)}" aria-label="${esc(s.label)}"
         style="left:calc(50% + ${(Math.cos(a) * 108).toFixed(1)}px);top:calc(50% + ${(Math.sin(a) * 108).toFixed(1)}px)"><img src="${s.src}" alt=""></button>`;
     }).join("");
-    $("stampPage").textContent = pages > 1 ? `${wheelPage + 1}/${pages}` : "";
-    $("stampMore").hidden = pages < 2;
+    $("stampPage").textContent = pages() > 1 ? `${wheelPage + 1}/${pages()}` : "";
+    $("stampMore").hidden = pages() < 2;
+    wheel.querySelectorAll(".stamp-who button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.who === who)));
   }
   function openWheel() { drawRing(); wheel.hidden = false; fab.setAttribute("aria-expanded", "true"); requestAnimationFrame(() => wheel.classList.add("open")); }
   function closeWheel() { wheel.classList.remove("open"); wheel.hidden = true; fab.setAttribute("aria-expanded", "false"); }
@@ -75,7 +81,12 @@ export function initStamps(stickers, pageKey, store) {
 
   fab.addEventListener("click", () => (wheel.hidden ? openWheel() : closeWheel()));
   $("stampScrim").addEventListener("click", closeWheel);
-  $("stampMore").addEventListener("click", () => { wheelPage = (wheelPage + 1) % pages; drawRing(); });
+  $("stampMore").addEventListener("click", () => { wheelPage = (wheelPage + 1) % pages(); drawRing(); });
+  wheel.querySelector(".stamp-who")?.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-who]");
+    if (!b || b.dataset.who === who) return;
+    who = b.dataset.who; wheelPage = 0; drawRing();
+  });
   ring.addEventListener("click", (e) => { const b = e.target.closest(".slot"); if (b) { setCurrent(b.dataset.s); closeWheel(); } });
   $("stampClearWheel").addEventListener("click", () => { clearPage(); closeWheel(); });
   $("stampClear").addEventListener("click", clearPage);

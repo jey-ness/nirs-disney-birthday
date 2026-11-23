@@ -12,6 +12,9 @@
 # Nir's stickers (pictures of a real person): only ship encrypted
 /data/stickers.json
 
+# Jey's memoji sticker PNGs (pictures of a real person): local only
+/stickers/
+
 # Brief contains booking confirmation numbers
 /orlando-trip-site-brief.md
 
