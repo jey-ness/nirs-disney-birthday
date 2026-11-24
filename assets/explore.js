@@ -76,6 +76,8 @@ export const SNACKS = {
     { name: "Les Halles Boulangerie-Patisserie", area: "France", note: "Croissants, éclairs and baguette sandwiches", lat: 28.3685865, lng: -81.5529844 },
     { name: "Karamell-Küche", area: "Germany", note: "Caramel corn and caramel everything", lat: 28.3684055, lng: -81.5469493 },
     { name: "Refreshment Port", area: "Canada", note: "Poutine and boozy slushies", lat: 28.37188, lng: -81.5508, approx: true },
+    { name: "Tangierine Café: Flavors of the Medina", area: "Morocco", meal: true, note: "Quick service: shawarma platters, hummus and baklava", lat: 28.3683626, lng: -81.5517636 },
+    { name: "Spice Road Table", area: "Morocco", meal: true, note: "Small plates on a lagoon patio; ask at the podium for walk-up seating", lat: 28.3689, lng: -81.55155, approx: true },
     { name: "Connections Café", area: "World Celebration", note: "Starbucks coffee and pastries", lat: 28.3741547, lng: -81.5487792 },
   ],
   "magic-kingdom": [
