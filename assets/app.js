@@ -523,12 +523,12 @@ function listHtml(day, items, cur) {
 let mapApi = { highlight() {}, focus() {}, draw() {}, drawPois() {} };
 
 // "Shops & food" map view: the park's shops (assets/explore.js SHOPS) and snack stops (SNACKS).
-const POI_ICON = { shop: ph("storefront", 14), snack: ph("coffee", 14), food: ph("fork-knife", 14) };
-const POI_LABEL = { shop: "Shop", snack: "Snacks", food: "Food" };
+const POI_ICON = { shop: ph("storefront", 14), snack: ph("coffee", 14), food: ph("fork-knife", 14), coffee: ph("coffee-bean", 14) };
+const POI_LABEL = { shop: "Shop", snack: "Snacks", food: "Food", coffee: "Coffee" };
 function poisFor(day) {
   return [
     ...(SHOPS[day.slug] || []).map((x, i) => ({ ...x, type: "shop", id: "shop-" + i })),
-    ...(SNACKS[day.slug] || []).map((x, i) => ({ ...x, type: x.meal ? "food" : "snack", id: "food-" + i })),
+    ...(SNACKS[day.slug] || []).map((x, i) => ({ ...x, type: x.coffee ? "coffee" : x.meal ? "food" : "snack", id: "food-" + i })),
   ].filter((x) => x.lat != null);
 }
 function showPoi(p, day) {
@@ -617,8 +617,8 @@ function wireDay(day) {
   function drawMap() {
     showPoi(null, day);
     if (mapMode === "poi") {
-      const nS = pois.filter((p) => p.type === "shop").length, nF = pois.length - nS;
-      note.textContent = `${nS} shops and ${nF} snack and food stops. Tap one for details; Lorcana shops are ringed.`;
+      const n = (t) => pois.filter((p) => p.type === t).length;
+      note.textContent = `${n("shop")} shops, ${n("coffee")} coffee stops and ${n("snack") + n("food")} snack and food stops. Tap one for details; Lorcana shops are ringed.`;
       mapApi.drawPois(pois, (p) => showPoi(p, day));
     } else {
       note.textContent = (note.dataset.base || "") + lastApproxTxt;

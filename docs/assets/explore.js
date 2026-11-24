@@ -69,7 +69,7 @@ export const SHOPS = {
 };
 
 // Snack and food stops worth knowing in each park, for the map's "Shops & food" view. meal: a proper
-// quick-service restaurant (fork & knife); the rest are snacks and coffee (cup). Public park info.
+// quick-service restaurant (fork & knife); coffee: a real coffee stop (coffee bean); the rest are snacks (cup). Public park info.
 export const SNACKS = {
   epcot: [
     { name: "Kringla Bakeri og Kafe", area: "Norway", note: "School bread and lefse", lat: 28.3706428, lng: -81.54691 },
@@ -78,20 +78,25 @@ export const SNACKS = {
     { name: "Refreshment Port", area: "Canada", note: "Poutine and boozy slushies", lat: 28.37188, lng: -81.5508, approx: true },
     { name: "Tangierine Café: Flavors of the Medina", area: "Morocco", meal: true, note: "Quick service: shawarma platters, hummus and baklava", lat: 28.3683626, lng: -81.5517636 },
     { name: "Spice Road Table", area: "Morocco", meal: true, note: "Small plates on a lagoon patio; ask at the podium for walk-up seating", lat: 28.3689, lng: -81.55155, approx: true },
-    { name: "Connections Café", area: "World Celebration", note: "Starbucks coffee and pastries", lat: 28.3741547, lng: -81.5487792 },
+    { name: "Joffrey's Coffee, EPCOT main gate", area: "Entrance plaza", coffee: true, note: "Coffee and cold brew right as you walk in", lat: 28.3765973, lng: -81.5492998 },
+    { name: "Joffrey's Coffee, American Adventure", area: "World Showcase", coffee: true, note: "Coffee kiosk halfway round World Showcase", lat: 28.3679517, lng: -81.5487287 },
+    { name: "Connections Café", coffee: true, area: "World Celebration", note: "Starbucks coffee and pastries", lat: 28.3741547, lng: -81.5487792 },
   ],
   "magic-kingdom": [
     { name: "Aloha Isle", area: "Adventureland", note: "Dole Whip", lat: 28.41822, lng: -81.58295, approx: true },
     { name: "Gaston's Tavern", area: "Fantasyland", note: "The giant cinnamon roll and LeFou's Brew", lat: 28.4213393, lng: -81.5804385 },
     { name: "Sleepy Hollow", area: "Liberty Square", note: "Sweet waffle sandwiches", lat: 28.4192628, lng: -81.5819914 },
     { name: "Casey's Corner", meal: true, area: "Main Street, U.S.A.", note: "Hot dogs and corn dog nuggets", lat: 28.4179445, lng: -81.5813558 },
-    { name: "Main Street Bakery", area: "Main Street, U.S.A.", note: "Starbucks coffee and holiday treats", lat: 28.417348, lng: -81.5810819 },
+    { name: "Joffrey's Coffee & Tea", area: "Tomorrowland", coffee: true, note: "Coffee, cold brew and espresso near TRON and Buzz", lat: 28.4185087, lng: -81.578486 },
+    { name: "Cheshire Café", area: "Fantasyland", coffee: true, note: "Iced coffee and cold brew by the teacups", lat: 28.4197696, lng: -81.5800432 },
+    { name: "Main Street Bakery", coffee: true, area: "Main Street, U.S.A.", note: "Starbucks coffee and holiday treats", lat: 28.417348, lng: -81.5810819 },
   ],
   "hollywood-studios": [
     { name: "Milk Stand", area: "Star Wars: Galaxy's Edge", note: "Blue and green milk", lat: 28.3543744, lng: -81.5623373 },
     { name: "Docking Bay 7 Food and Cargo", meal: true, area: "Star Wars: Galaxy's Edge", note: "Proper lunch in the spaceport", lat: 28.3540517, lng: -81.5616011 },
     { name: "Woody's Lunch Box", meal: true, area: "Toy Story Land", note: "Lunch box tarts and the grilled cheese", lat: 28.3557347, lng: -81.5622195 },
-    { name: "Trolley Car Café", area: "Hollywood Boulevard", note: "Starbucks coffee", lat: 28.3577437, lng: -81.5596472 },
+    { name: "Joffrey's Coffee & Tea", area: "Sunset Boulevard", coffee: true, note: "Coffee and cold brew by Rock 'n' Roller Coaster", lat: 28.3597005, lng: -81.5596056 },
+    { name: "Trolley Car Café", coffee: true, area: "Hollywood Boulevard", note: "Starbucks coffee", lat: 28.3577437, lng: -81.5596472 },
     { name: "Hollywood Scoops", area: "Sunset Boulevard", note: "Ice cream sandwiches", lat: 28.3591572, lng: -81.560083 },
   ],
 };
