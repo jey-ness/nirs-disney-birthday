@@ -233,7 +233,7 @@ function renderHome(trip) {
           const tags = [
             booked ? tag("booked", `${booked} booked`) : "",
             d.passes.single.some((p) => /both/.test(p)) ? tag("single", d.passes.single[0].replace(" (both)", " · both")) : "",
-            tag("solo", `Jey: ${d.soloShort}`),
+            d.soloShort ? tag("solo", `Jey: ${d.soloShort}`) : "",
           ].join("");
           return `<a class="dayrow" href="${BASE}day/${d.slug}/">
             <span><span class="dow">${esc(d.weekday)}</span><span class="dnum">${Number(d.date.slice(8))}</span></span>
@@ -396,7 +396,7 @@ function renderDay(trip, day) {
 
     <ul class="passes">
       <li>${tag("multi", "Multi Pass")}<span>${day.passes.multi.map(esc).join(", ")}</span></li>
-      <li>${tag("single", "Single Pass")}<span>${day.passes.single.map(esc).join(", ")}</span></li>
+      ${day.passes.single.length ? `<li>${tag("single", "Single Pass")}<span>${day.passes.single.map(esc).join(", ")}</span></li>` : ""}
     </ul>
     ${day.note ? `<p class="note">${esc(day.note)}</p>` : ""}
 
