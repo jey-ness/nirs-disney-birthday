@@ -17,9 +17,9 @@ const app = document.getElementById("app");
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const BADGE = { solo: "Jey solo", booked: "Booked", multi: "Multi Pass", single: "Single Pass", standby: "Standby" };
+const BADGE = { solo: "Jey solo", booked: "Booked", multi: "Multi Pass", single: "Single Pass", premier: "Premier Pass", standby: "Standby" };
 // Known tag styles get their color; anything else (custom tags) is a neutral pill. Never put user text in class.
-const TAG_CLASSES = new Set(["solo", "booked", "multi", "single", "standby", "approx", "undecided", "lorcana"]);
+const TAG_CLASSES = new Set(["solo", "booked", "multi", "single", "premier", "standby", "approx", "undecided", "lorcana"]);
 const tag = (cls, text) => `<span class="tag ${TAG_CLASSES.has(cls) ? cls : "custom"}">${esc(text)}</span>`;
 const tagsFor = (tags = []) => (tags.length ? `<span class="tags">${tags.map((t) => tag(t, BADGE[t] || t)).join("")}</span>` : "");
 
@@ -232,7 +232,7 @@ function renderHome(trip) {
           const booked = d.stops.filter((s) => s.booked).length;
           const tags = [
             booked ? tag("booked", `${booked} booked`) : "",
-            d.passes.single.some((p) => /both/.test(p)) ? tag("single", d.passes.single[0].replace(" (both)", " · both")) : "",
+            d.passes.premier?.length ? tag("premier", "Premier Pass") : d.passes.single.some((p) => /both/.test(p)) ? tag("single", d.passes.single[0].replace(" (both)", " · both")) : "",
             d.soloShort ? tag("solo", `Jey: ${d.soloShort}`) : "",
           ].join("");
           return `<a class="dayrow" href="${BASE}day/${d.slug}/">
@@ -395,7 +395,8 @@ function renderDay(trip, day) {
     <p class="mapnote" id="mapnote"></p>
 
     <ul class="passes">
-      <li>${tag("multi", "Multi Pass")}<span>${day.passes.multi.map(esc).join(", ")}</span></li>
+      ${day.passes.premier?.length ? `<li>${tag("premier", "Premier Pass")}<span>${day.passes.premier.map(esc).join(", ")}</span></li>` : ""}
+      ${day.passes.multi.length ? `<li>${tag("multi", "Multi Pass")}<span>${day.passes.multi.map(esc).join(", ")}</span></li>` : ""}
       ${day.passes.single.length ? `<li>${tag("single", "Single Pass")}<span>${day.passes.single.map(esc).join(", ")}</span></li>` : ""}
     </ul>
     ${day.note ? `<p class="note">${esc(day.note)}</p>` : ""}

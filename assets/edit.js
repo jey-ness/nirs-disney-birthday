@@ -388,7 +388,7 @@ export function renderCalendar(box, events, { today, nowMin, placeLabel, onCreat
 }
 
 // ---------- editor sheet ----------
-export const BUILTIN_TAGS = [["multi", "Multi Pass"], ["single", "Single Pass"], ["solo", "Jey solo"], ["booked", "Booked"], ["standby", "Standby"]];
+export const BUILTIN_TAGS = [["premier", "Premier Pass"], ["multi", "Multi Pass"], ["single", "Single Pass"], ["solo", "Jey solo"], ["booked", "Booked"], ["standby", "Standby"]];
 const BUILTIN = new Set(BUILTIN_TAGS.map(([v]) => v));
 const cleanTag = (t) => String(t).replace(/\s+/g, " ").trim().slice(0, 24);
 
