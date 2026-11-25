@@ -1,5 +1,5 @@
 // Offline cache: network first, cached copy when offline or slow.
-const CACHE = "orlando-trip-v45";
+const CACHE = "orlando-trip-v46";
 const FONT_CACHE = "orlando-fonts-v1";
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 // Relative to this worker's folder, so it works at / and at /repo-name/
